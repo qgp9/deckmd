@@ -3,6 +3,8 @@
 //   npx deckmd serve                           serve the current folder (a project from npx deckmd init: its index.html, or the deck list from deck.config.js)
 //   npx deckmd serve my-deck.md                serve that one deck. No index.html or config needed
 //   npx deckmd serve a.md b.md examples/*.md   a deck list of those files
+//   Run inside a project (an index.html and/or deck.config.js here) with files from it: your index.html and deck.config.js are used,
+//   only home, src and decks are replaced by your files, so the theme, plugins and CSS of the project apply.
 //   --port N   default 8000, or the next free port; 0 = any      --open   open the browser
 //   --host H   default localhost; 0.0.0.0 opens it to your network (a phone, a friend's laptop)
 //   Files are read from disk on every request: edit, then reload. Dot files and folders (.git, .env) are never served.
@@ -47,12 +49,27 @@ export async function serve(args) {
     if (!fs.existsSync(f) || !fs.statSync(f).isFile()) die(`not found: ${given[i]}`);
     if (!/\.(md|markdown)$/i.test(f)) die(`serve takes Markdown files (.md), got: ${given[i]}`);
   }
-  const root = files.length ? files.map(f => path.dirname(f)).reduce(commonDir) : process.cwd();    // the folders the decks are in, so their images and CSS resolve
+  // Inside a project (an index.html and/or a config here) with files from it: preview them with the project's settings
+  const cwd = process.cwd();
+  const inside = f => { const r = path.relative(cwd, f); return r !== '' && !r.startsWith('..') && !path.isAbsolute(r); };
+  const hasIndex = fs.existsSync(path.join(cwd, 'index.html'));
+  const bootTag = hasIndex ? /<script\b[^>]*\bboot\.js[^>]*>/.exec(fs.readFileSync(path.join(cwd, 'index.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, ''))?.[0] || '' : '';   // the real tag, not the comments about it
+  const configName = /\bdata-config="([^"]*)"/.exec(bootTag)?.[1] || 'deck.config.js';              // the config its index.html loads
+  const configOk = /^[\w.-][\w./-]*$/.test(configName) && !configName.includes('..');                // a file in this folder; 'none' or a URL can't be extended
+  const hasConfig = configOk && fs.existsSync(path.join(cwd, configName));
+  const project = files.length > 0 && files.every(inside) && (hasIndex || hasConfig) && configOk && configName !== 'none';
+  const ownIndex = project && hasIndex;                                                              // the project's index.html is the page
+  const root = files.length === 0 || project ? cwd : files.map(f => path.dirname(f)).reduce(commonDir);    // else the folders the decks are in, so their images and CSS resolve
   if (root === path.parse(root).root) die('those files are too far apart: no common folder below the root of the disk');
   const decks = files.map(f => ({ src: posix(path.relative(root, f)) }));
-  const config = `// made by deckmd serve for the files you gave it
-window.DeckConfig = ${JSON.stringify({ title: 'Decks', home: decks.length === 1 ? 'deck' : 'list', src: decks[0]?.src, decks }, null, 2)};
-`;
+  const configUrl = ownIndex ? `/${posix(path.normalize(configName))}` : null;                      // where the page asks for its config
+  const makeConfig = () => {                                                                         // read on every request: edit deck.config.js, reload
+    const mine = { home: decks.length === 1 ? 'deck' : 'list', src: decks[0]?.src, decks };
+    if (project && hasConfig) return `${fs.readFileSync(path.join(cwd, configName), 'utf8').trimEnd()}\n\n// deckmd serve: the files you gave it replace home, src and decks\nObject.assign(window.DeckConfig = window.DeckConfig || {}, ${JSON.stringify(mine, null, 2)});\n`;
+    return `// made by deckmd serve for the files you gave it\nwindow.DeckConfig = ${JSON.stringify({ title: 'Decks', ...mine }, null, 2)};\n`;
+  };
+  const note = !files.length ? '' : project ? `using ${[ownIndex && 'index.html', hasConfig && configName].filter(Boolean).join(' and ')} from this folder; your files replace home, src and decks`
+    : (hasIndex || fs.existsSync(path.join(cwd, 'deck.config.js'))) ? `not using index.html or deck.config.js here: ${files.every(inside) ? "the project's config can't be extended" : 'the files are outside this folder'}` : '';
   const launcher = `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>deckmd</title></head>
@@ -80,11 +97,12 @@ window.DeckConfig = ${JSON.stringify({ title: 'Decks', home: decks.length === 1 
     if (pathname.includes('\0') || parts.some(p => p.startsWith('.') || p.includes('\\'))) return text(req, res, 404, 'Not found');   // '..', .git, .env …
 
     if (parts[0] === '_deckmd') {                                           // deckmd itself, from the installed package
-      if (parts[1] === 'config.js' && parts.length === 2 && files.length) return send(req, res, 200, TYPES['.js'], config);
+      if (parts[1] === 'config.js' && parts.length === 2 && files.length) return send(req, res, 200, TYPES['.js'], makeConfig());
       if (PACKAGE_DIRS.has(parts[1])) return sendFile(req, res, path.join(ROOT, ...parts.slice(1)));
       return text(req, res, 404, 'Not found');
     }
-    if (files.length && (pathname === '/' || pathname === '/index.html')) return send(req, res, 200, TYPES['.html'], launcher);
+    if (configUrl && pathname === configUrl) return send(req, res, 200, TYPES['.js'], makeConfig());   // the project's page asks for its own config
+    if (files.length && !ownIndex && (pathname === '/' || pathname === '/index.html')) return send(req, res, 200, TYPES['.html'], launcher);
     const target = path.join(root, ...parts);
     fs.stat(target, (err, st) => {
       if (err) return text(req, res, 404, 'Not found');
@@ -105,7 +123,7 @@ window.DeckConfig = ${JSON.stringify({ title: 'Decks', home: decks.length === 1 
   const url = `http://${host === '0.0.0.0' || host === '::' ? 'localhost' : host}:${actual}/`;
   const lan = host === '0.0.0.0' ? Object.values(os.networkInterfaces()).flat().find(i => i && i.family === 'IPv4' && !i.internal) : null;
   const what = !files.length ? 'the current folder' : files.length === 1 ? given[0] : `${files.length} decks`;
-  console.log(`deckmd serve: ${what}${files.length && root !== process.cwd() ? `  (from ${root})` : ''}
+  console.log(`deckmd serve: ${what}${files.length && root !== process.cwd() ? `  (from ${root})` : ''}${note ? `\n  ${note}` : ''}
   ${url}${lan ? `\n  ${url.replace('localhost', lan.address)}   (on your network)` : ''}
 Reload the page to see edits. Ctrl+C to stop.`);
   if (open) spawn(...(process.platform === 'darwin' ? ['open', [url]] : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : ['xdg-open', [url]]), { stdio: 'ignore', detached: true }).on('error', () => {}).unref();

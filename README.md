@@ -73,7 +73,7 @@ npx deckmd init                  # index.html + slides.md (deckmd itself comes f
 npx deckmd serve                 # a small web server; open http://localhost:8000/ and edit slides.md
 ```
 
-No project needed to look at a Markdown file: `npx deckmd serve my-deck.md` shows that one deck, and `npx deckmd serve a.md b.md` a deck list. `serve` also takes `--port`, `--open` and `--host 0.0.0.0` (to open it to a phone on your network).
+No project needed to look at a Markdown file: `npx deckmd serve my-deck.md` shows that one deck, and `npx deckmd serve a.md b.md` a deck list. Run inside a project, it uses the project's `index.html` and `deck.config.js` and only replaces which decks to show, so your theme applies. `serve` also takes `--port`, `--open` and `--host 0.0.0.0` (to open it to a phone on your network).
 
 When you're done, press **E** while viewing the deck → "Offline", or run `npx deckmd slides.md`. Commit the resulting file next to the deck; that is the frozen version.
 

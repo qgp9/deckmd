@@ -312,14 +312,14 @@ test('add: a title with quotes and colons is still valid front matter, and the n
 // npx deckmd serve: one deck, a deck list, or the current folder
 async function withServe(args, cwd, fn) {
   const child = spawn(process.execPath, [BUILD, 'serve', ...args, '--port', '0'], { cwd });
-  let err = '';
+  let err = '', printed = '';
   child.stderr.on('data', d => { err += d; });
   try {
     const base = await new Promise((ok, no) => {
-      child.stdout.on('data', (d) => { const m = /http:\/\/localhost:\d+\//.exec(String(d)); if (m) ok(m[0]); });
+      child.stdout.on('data', (d) => { printed += d; const m = /http:\/\/localhost:\d+\//.exec(printed); if (m) ok(m[0]); });
       child.once('exit', code => no(new Error(`serve exited ${code}: ${err}`)));
     });
-    return await fn(base);
+    return await fn(base, printed);
   } finally { child.kill(); }
 }
 const get = async (url) => { const r = await fetch(url); return { status: r.status, type: r.headers.get('content-type'), text: await r.text() }; };
@@ -386,6 +386,49 @@ test('serve (no files): the current folder as it is: its own index.html, folder 
   fs.mkdirSync(bare, { recursive: true });
   fs.writeFileSync(path.join(bare, 'x.md'), '# x\n');
   await withServe([], bare, async (base) => assert.match((await get(base)).text, /href="x\.md"/));
+});
+
+test('serve a.md inside a project: its index.html and deck.config.js are used, only home, src and decks are replaced', async () => {
+  const proj = path.join(OUT, 'serve-project-file');
+  fs.mkdirSync(path.join(proj, 'sub'), { recursive: true });
+  const index = '<!doctype html>\n<!-- data-config="x.js" is just a comment here -->\n<script src="deckmd/js/boot.js"></script>\n';
+  fs.writeFileSync(path.join(proj, 'index.html'), index);
+  fs.writeFileSync(path.join(proj, 'deck.config.js'), "window.DeckConfig = {\n  title: 'Mine',\n  theme: 'catppuccin',\n  home: 'list',\n};\n");
+  fs.writeFileSync(path.join(proj, 'sub/a.md'), '# A\n');
+  await withServe(['sub/a.md'], proj, async (base, printed) => {
+    assert.match(printed, /using index\.html and deck\.config\.js from this folder/);
+    assert.equal((await get(base)).text, index, "the project's own index.html, not a generated one");
+    const cfg = (await get(`${base}deck.config.js`)).text;                 // what the project's page asks for
+    assert.ok(cfg.includes("theme: 'catppuccin'") && cfg.includes("title: 'Mine'"), "the project's settings stay");
+    assert.match(cfg, /"home": "deck"/);
+    assert.match(cfg, /"src": "sub\/a\.md"/);
+    assert.equal((await get(`${base}_deckmd/config.js`)).text, cfg, 'the same for a generated launcher');
+    fs.writeFileSync(path.join(proj, 'deck.config.js'), "window.DeckConfig = { theme: 'solarized' };\n");
+    assert.ok((await get(`${base}deck.config.js`)).text.includes("theme: 'solarized'"), 'read on every request');
+  });
+  // a custom data-config on the real tag is the file that gets extended
+  fs.writeFileSync(path.join(proj, 'index.html'), '<script src="deckmd/js/boot.js" data-config="my.config.js"></script>\n');
+  fs.writeFileSync(path.join(proj, 'my.config.js'), "window.DeckConfig = { title: 'Custom' };\n");
+  await withServe(['sub/a.md'], proj, async (base, printed) => {
+    assert.match(printed, /using index\.html and my\.config\.js/);
+    const cfg = (await get(`${base}my.config.js`)).text;
+    assert.ok(cfg.includes("title: 'Custom'") && /"src": "sub\/a\.md"/.test(cfg));
+  });
+  // only a config, no index.html: the generated launcher with the project's settings
+  fs.rmSync(path.join(proj, 'index.html'));
+  await withServe(['sub/a.md'], proj, async (base, printed) => {
+    assert.match(printed, /using my\.config\.js|using deck\.config\.js/);
+    assert.match((await get(base)).text, /\/_deckmd\/js\/boot\.js/);
+    assert.match((await get(`${base}_deckmd/config.js`)).text, /"src": "sub\/a\.md"/);
+  });
+  // files outside this folder: the project can't apply, said out loud
+  const other = path.join(OUT, 'serve-project-other');
+  fs.mkdirSync(other, { recursive: true });
+  fs.writeFileSync(path.join(other, 'x.md'), '# X\n');
+  await withServe([path.join(other, 'x.md')], proj, async (base, printed) => {
+    assert.match(printed, /not using index\.html or deck\.config\.js here: the files are outside this folder/);
+    assert.doesNotMatch((await get(`${base}_deckmd/config.js`)).text, /Custom|catppuccin|solarized/);
+  });
 });
 
 test('serve: errors and help', () => {
