@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // Pack / unpack a deck — the same job as the E key in the browser, from the command line.
 //
-//   npx deckmd init [dir] [--cdn | --repo]      start a talks repository: index.html, deck.config.js, talks/first-talk/talk.md  (npx deckmd init --help)
-//   npx deckmd add <name> [title]               add a deck to a talks repository: talks/<name>/talk.md from the starter  (npx deckmd add --help)
+//   npx deckmd init [dir] [--cdn | --repo]      start a talks repository: index.html, deck.config.js, slides/first-deck/deck.md  (npx deckmd init --help)
+//   npx deckmd add <name> [title]               add a deck to a talks repository: slides/<name>/deck.md from the starter  (npx deckmd add --help)
 //   node tools/build.mjs talk.md [--offline]    → <deck folder>/dist/<name>.offline.html   one file with everything inside (opens without internet, default)
 //   node tools/build.mjs talk.md --share        → <deck folder>/dist/<name>.share.html     libraries and fonts from the CDN (small, needs internet)
 //   node tools/build.mjs index.html             a page with slides written directly works too (that page is the launcher page)
@@ -86,9 +86,9 @@ async function pack() {
 </html>
 `;
 
-  // Output name: the file name (the folder name for common names like talk.md, index.html)
+  // Output name: the file name (the folder name for common names like deck.md, slides.md, index.html)
   const base0 = path.basename(INPUT).replace(/\.(md|markdown|html?)$/i, '');
-  const name = /^(talk|index|slides|readme)$/i.test(base0) ? path.basename(path.dirname(INPUT)) : base0;
+  const name = /^(talk|deck|index|slides|readme)$/i.test(base0) ? path.basename(path.dirname(INPUT)) : base0;
   const out = path.resolve(OUT_ARG || path.join(path.dirname(INPUT), 'dist', `${name}.${MODE}.html`));
   if ([INPUT, pagePath, path.join(pageDir, 'deck.config.js')].includes(out)) die(`output file is the same as an original: ${show(out)}`);
   if (fs.existsSync(out) && !FORCE) die(`already exists: ${show(out)} (use --force to overwrite)`);

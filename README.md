@@ -80,11 +80,11 @@ When you're done, press **E** while viewing the deck → "Offline", or run `npx 
 | Option | |
 |---|---|
 | `--cdn` (default) / `--repo` | where deckmd comes from: the CDN, pinned to a version / a copy in `deckmd/` in your repository (works offline, you own the version) |
-| `--single` (default) / `--multi` | one deck: `index.html` + `slides.md` / a talks repository, one folder per deck: `index.html`, `deck.config.js`, `talks/first-talk/talk.md` and a deck list as the home page |
+| `--single` (default) / `--multi` | one deck: `index.html` + `slides.md` / a talks repository, one folder per deck: `index.html`, `deck.config.js`, `slides/first-deck/deck.md` and a deck list as the home page |
 
 `init` never overwrites: if any of the files (with `--repo`, also `deckmd/`) already exists, it stops and changes nothing. To do it by hand, or with a git submodule: [docs/usage.md](docs/usage.md).
 
-In a `--multi` repository, add a deck with `npx deckmd add my-talk "My talk title"`: it creates `talks/my-talk/talk.md` from the starter, with the title and date filled in, and the deck shows up in the deck list.
+In a `--multi` repository, add a deck with `npx deckmd add my-talk "My talk title"`: it creates `slides/my-talk/deck.md` from the starter, with the title and date filled in, and the deck shows up in the deck list.
 
 Working offline, opening without a server, URL options and config: [docs/usage.md](docs/usage.md).
 

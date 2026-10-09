@@ -633,7 +633,7 @@
     const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
     return [...doc.querySelectorAll('a[href]')].map(a => decodeURIComponent(a.getAttribute('href')));
   }
-  // scan: ['talks', 'talks/*'] — 'x/*' means each subfolder of x (one deck = one folder). Relative to the page.
+  // scan: ['slides', 'slides/*'] — 'x/*' means each subfolder of x (one deck = one folder). Relative to the page.
   // The top ('.', '*') can't be found when the launcher page is index.html, because the server returns that page instead of a directory listing
   async function scanDecks() {
     const found = [];

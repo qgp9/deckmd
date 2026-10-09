@@ -22,7 +22,7 @@ tools/
   serve.sh, .cmd, .ps1  web server for live preview while writing
   build.mjs             command-line pack and unpack (runs pack.js unchanged in jsdom)
   init.mjs              npx deckmd init: starts a talks repository from templates/ (build.mjs hands over to it)
-  add.mjs               npx deckmd add: adds talks/<name>/talk.md from the starter
+  add.mjs               npx deckmd add: adds slides/<name>/deck.md from the starter
   localize.mjs          downloads CDN libraries, fonts and licenses into vendor/
   release.mjs           builds the offline zip (distribution on hold)
 scripts/version.mjs     repo maintenance, not published: npm version copies the new version into DeckMD.version
@@ -53,8 +53,8 @@ The npm package contains only the runtime (`js/ css/ themes/ plugins/`), `templa
 <!-- bundled libraries and fonts (each under its own license …): reveal.js — MIT — https://…/LICENSE … -->
 <style data-src="https://cdn.jsdelivr.net/npm/reveal.js@…/dist/reveal.css">…</style>        ← library: key = CDN URL
 <style data-src="themes/ember/ember.css" data-from="deckmd">…</style>                      ← deckmd's file: key = path relative to deckmd
-<style data-src="talk.css" data-file="talks/x/talk.css">…</style>                           ← your file: data-file = original location
-<script type="text/markdown" data-base="./" data-path="talks/x/talk.md">…Markdown…</script>
+<style data-src="deck.css" data-file="slides/x/deck.css">…</style>                           ← your file: data-file = original location
+<script type="text/markdown" data-base="./" data-path="slides/x/deck.md">…Markdown…</script>
 <script type="application/json" id="deck-assets">{"img/a.png": "data:image/png;base64,…"}</script>
 <script data-src="js/deck.js" data-from="deckmd">…</script>
 ```

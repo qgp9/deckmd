@@ -2,7 +2,7 @@
 # Web server for viewing while writing. Finds an available tool and serves the current folder with it (localhost only).
 #
 #   deckmd/tools/serve.sh [port]            order: python3 → python → node → php
-#   deckmd/tools/serve.sh -d talks 9000     folder and port (default: current folder, 8000)
+#   deckmd/tools/serve.sh -d slides 9000     folder and port (default: current folder, 8000)
 #
 # If the port is in use, tries the next numbers (up to 10).
 set -eu

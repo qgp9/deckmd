@@ -80,11 +80,11 @@ python3 -m http.server           # 아무 정적 웹 서버나. http://localhost
 | 옵션 | |
 |---|---|
 | `--cdn` (기본) / `--repo` | deckmd 를 어디서 가져오나: 버전을 고정한 CDN / 내 저장소의 `deckmd/` 에 복사 (오프라인 가능, 버전은 내 것) |
-| `--single` (기본) / `--multi` | 덱 하나: `index.html` + `slides.md` / 폴더마다 덱 하나인 발표 저장소: `index.html`, `deck.config.js`, `talks/first-talk/talk.md`, 첫 화면은 덱 목록 |
+| `--single` (기본) / `--multi` | 덱 하나: `index.html` + `slides.md` / 폴더마다 덱 하나인 발표 저장소: `index.html`, `deck.config.js`, `slides/first-deck/deck.md`, 첫 화면은 덱 목록 |
 
 `init` 은 덮어쓰지 않는다. 파일이 하나라도 있으면 (`--repo` 는 `deckmd/` 도) 아무것도 바꾸지 않고 멈춘다. 손으로 하거나 git submodule 로 하려면 [docs/usage.md](docs/usage.md) (영문).
 
-`--multi` 저장소에서는 `npx deckmd add my-talk "발표 제목"` 으로 덱을 더한다: 견본에서 `talks/my-talk/talk.md` 를 만들고 제목과 날짜를 채우며, 덱 목록에 바로 뜬다.
+`--multi` 저장소에서는 `npx deckmd add my-talk "발표 제목"` 으로 덱을 더한다: 견본에서 `slides/my-talk/deck.md` 를 만들고 제목과 날짜를 채우며, 덱 목록에 바로 뜬다.
 
 인터넷 없이 쓰는 법, 서버 없이 여는 법, 주소 옵션, 설정은 [docs/usage.md](docs/usage.md).
 

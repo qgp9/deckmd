@@ -22,22 +22,22 @@ window.DeckConfig = {
   // Opened without ?src=: 'list' = deck list | 'deck' = open the src deck below right away.
   home: 'list',
   // Markdown to open when home: 'deck' (relative to index.html). Handy when there's only one deck.
-  // src: 'talk.md',
+  // src: 'slides.md',
 
   // How the list is built.
   //   'auto'  = find .md files in the scan folders below from the web server's folder listing (the server must provide folder listings; not on file://).
   //   [ ... ] = write it yourself. Use this for static hosting (GitHub Pages, etc.) or file://.
   decks: 'auto',
   // decks: [
-  //   { src: 'talks/2026-11-first-talk/talk.md', title: 'My first talk' },
-  //   'talks/2026-12-second/talk.md',                  // a plain string works too (title from front matter title or the first # heading)
+  //   { src: 'slides/2026-11-first-talk/deck.md', title: 'My first talk' },
+  //   'slides/2026-12-second/deck.md',                  // a plain string works too (title from front matter title or the first # heading)
   // ],
 
   // Where to look when decks: 'auto' (relative to index.html).
-  //   'talks'     the talks folder itself (talks/talk.md)
-  //   'talks/*'   each subfolder of talks (talks/2026-11-xxx/talk.md) ← one deck = one folder (recommended)
-  //   The top level ('.', '*') can't be scanned because index.html hides its folder listing → go one level down like 'talks/*', or list them in decks.
-  scan: ['talks/*'],
+  //   'slides'    the slides folder itself (slides/deck.md)
+  //   'slides/*'  each subfolder of slides (slides/2026-11-xxx/deck.md) ← one deck = one folder (recommended)
+  //   The top level ('.', '*') can't be scanned because index.html hides its folder listing → go one level down like 'slides/*', or list them in decks.
+  scan: ['slides/*'],
 
   // ───────────── Deck defaults (apply to all decks. If front matter has the same key, the rules below apply) ─────────────
 

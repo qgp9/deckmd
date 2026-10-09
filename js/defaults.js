@@ -5,7 +5,7 @@ window.DeckDefaults = {
   home: 'deck',            // when opened without ?src: 'deck' = the src deck | 'list' = deck list
   src: 'slides.md',
   decks: 'auto',           // list: 'auto' = .md files in the scan folders (web server only) | [{ src, title }]
-  scan: ['talks/*'],       // where to look when decks: 'auto' (repository layout in docs/usage.md)
+  scan: ['slides/*'],       // where to look when decks: 'auto' (repository layout in docs/usage.md)
   theme: 'ember',          // themes/ember/ember.css
   css: [],
   plugins: [],

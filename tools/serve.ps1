@@ -7,7 +7,7 @@
 #
 #   deckmd\tools\serve.cmd                    Double-click it, or run it in a terminal. (Use the .cmd: a .ps1 opens in
 #                                             Notepad on double-click and may be blocked by the execution policy.)
-#   deckmd\tools\serve.cmd 9000 -Dir talks    Choose the port and folder (default: port 8000, folder as below)
+#   deckmd\tools\serve.cmd 9000 -Dir slides    Choose the port and folder (default: port 8000, folder as below)
 #
 # Without -Dir: the current folder if it has index.html, otherwise the first of ..\.. and .. (relative to this
 # script) that has one. If the port is taken, the next ones (up to 10) are tried. Stop with Ctrl+C.

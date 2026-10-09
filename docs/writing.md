@@ -63,7 +63,7 @@ title: Talk title           # browser title
 size: 1920x1080             # slide size
 mode: auto                  # dark | light | auto. Only if the theme supports it
 theme: ember                # theme (styling.md)
-css: [talk.css]             # extra CSS (path relative to this file)
+css: [deck.css]             # extra CSS (path relative to this file)
 style: ":root { --accent: #0a7; }"   # CSS inline
 plugins: [grid]             # plugins (plugins.md)
 reveal: { transition: slide }        # reveal.js settings

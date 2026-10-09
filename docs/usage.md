@@ -23,7 +23,7 @@ npx deckmd init [dir] [--cdn | --repo] [--single | --multi]
 | `--cdn` (default) | `index.html` loads deckmd from the CDN, pinned to the version you ran `init` with (change the number to upgrade) |
 | `--repo` | also copies deckmd into `deckmd/` (runtime, templates, tools). You own the copy; works offline after `node deckmd/tools/localize.mjs`. To follow deckmd's updates with git, use a submodule instead (below) |
 | `--single` (default) | one deck: `index.html` + `slides.md`. Opening `index.html` shows it, no config needed |
-| `--multi` | a talks repository: `index.html`, `deck.config.js`, `talks/first-talk/talk.md`. Opening `index.html` lists the decks |
+| `--multi` | a talks repository: `index.html`, `deck.config.js`, `slides/first-deck/deck.md`. Opening `index.html` lists the decks |
 
 `init` never overwrites. If any file it would create exists (with `--repo`, also `deckmd/`), it stops and changes nothing.
 
@@ -32,18 +32,18 @@ npx deckmd init [dir] [--cdn | --repo] [--single | --multi]
 Adds a deck to a `--multi` (talks) repository; run it at the top of the repository.
 
 ```bash
-npx deckmd add my-talk "My talk title"      # → talks/my-talk/talk.md
+npx deckmd add my-talk "My talk title"      # → slides/my-talk/deck.md
 ```
 
-It copies the starter (`templates/talk.md`) with the title and today's date filled in. The title is optional (`my-talk` → "My talk"; an unquoted `add my-talk My talk title` works too). The name is the folder name: no `/ \ : * ? " < > |`, and no leading dot. It never overwrites an existing `talk.md`. The deck shows up in the deck list on the next reload.
+It copies the starter (`templates/deck.md`) with the title and today's date filled in. The title is optional (`my-talk` → "My talk"; an unquoted `add my-talk My talk title` works too). The name is the folder name: no `/ \ : * ? " < > |`, and no leading dot. It never overwrites an existing `talk.md`. The deck shows up in the deck list on the next reload.
 
 ### Repository by hand (git submodule)
 
 ```bash
 git submodule add <deckmd repo> deckmd        # or copy it into deckmd/
 cp deckmd/templates/index.html deckmd/templates/deck.config.js .
-mkdir -p talks/2026-11-first-talk
-cp deckmd/templates/talk.md talks/2026-11-first-talk/
+mkdir -p slides/2026-11-first-talk
+cp deckmd/templates/deck.md slides/2026-11-first-talk/
 ```
 
 ```
@@ -51,8 +51,8 @@ talks-repo/
   deckmd/               ← the template (git submodule, pinned to a tag)
   index.html            ← templates/index.html (one boot.js line)
   deck.config.js        ← templates/deck.config.js (deck list, shared theme, etc.)
-  talks/2026-11-first-talk/
-    talk.md  img/
+  slides/2026-11-first-talk/
+    deck.md  img/
     dist/2026-11-first-talk.offline.html   ← pack and commit when you're done
 ```
 
@@ -84,7 +84,7 @@ deckmd/tools/serve.sh       # Windows: deckmd\tools\serve.cmd (double-click work
 ### Without a server
 
 If you open `index.html` directly in the browser, the browser blocks a `file://` page from reading neighboring files, so the first time you pick the Markdown file yourself (button or drag and drop).
-- Image and CSS paths are relative to the location given in `?src=`, so for a deck with images, open `index.html?src=talks/x/talk.md` and pick that file.
+- Image and CSS paths are relative to the location given in `?src=`, so for a deck with images, open `index.html?src=slides/x/deck.md` and pick that file.
 - Chrome and Edge remember the picked file and redraw as soon as you save changes. Other browsers only remember it until you reload.
 
 ## URL options
@@ -116,12 +116,12 @@ Put it next to the launcher page (it's optional). A sample listing every key wit
 window.DeckConfig = {
   title: 'Talks',
   home: 'list',            // opened without ?src: 'list' = deck list | 'deck' = the src deck below
-  scan: ['talks/*'],       // folders to build the deck list from (each folder under talks)
+  scan: ['slides/*'],       // folders to build the deck list from (each folder under slides)
   theme: 'ember',          // defaults for every deck: theme, mode, plugins, css, style, reveal, split, lines, size
 };
 ```
 
-- `scan` reads the web server's directory listing. The top folder (`'.'`) doesn't work because `index.html` hides its listing, so put decks one level down, like `talks/*`. When opening without a server, or on GitHub Pages, list them yourself with `decks: [{ src, title }, …]`.
+- `scan` reads the web server's directory listing. The top folder (`'.'`) doesn't work because `index.html` hides its listing, so put decks one level down, like `slides/*`. When opening without a server, or on GitHub Pages, list them yourself with `decks: [{ src, title }, …]`.
 - Paths in the config are **relative to the launcher page** (even when you use a config in another folder via `data-config`).
 
 When config, front matter, and URL options overlap:
@@ -152,8 +152,8 @@ If you want to manage a particular file yourself, write just that tag in the lau
 While viewing the deck, press **E** → "Offline" (one file with everything inside, opens without internet) or "Share" (libraries from the CDN, smaller). From the command line:
 
 ```bash
-node deckmd/tools/build.mjs talks/x/talk.md         # → talks/x/dist/x.offline.html  (first time: cd deckmd && npm install)
-npx deckmd talks/x/talk.md                          # without a deckmd folder (npm)
+node deckmd/tools/build.mjs slides/x/deck.md         # → slides/x/dist/x.offline.html  (first time: cd deckmd && npm install)
+npx deckmd slides/x/deck.md                          # without a deckmd folder (npm)
 ```
 
 For details (share, unpack, what gets included and what doesn't), see [packing.md](packing.md).

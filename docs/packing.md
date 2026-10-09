@@ -24,10 +24,10 @@ Does the same packing as the E key, from the command line. Use it to pack withou
 
 ```bash
 cd deckmd && npm install && cd ..                    # once (jsdom, Node 22 or later)
-node deckmd/tools/build.mjs talks/x/talk.md          # → talks/x/dist/x.offline.html
-node deckmd/tools/build.mjs talks/x/talk.md --share  # → talks/x/dist/x.share.html
-node deckmd/tools/build.mjs talks/x/index.html       # a deck written in HTML
-npx deckmd talks/x/talk.md                           # without a deckmd folder (npm)
+node deckmd/tools/build.mjs slides/x/deck.md          # → slides/x/dist/x.offline.html
+node deckmd/tools/build.mjs slides/x/deck.md --share  # → slides/x/dist/x.share.html
+node deckmd/tools/build.mjs slides/x/index.html       # a deck written in HTML
+npx deckmd slides/x/deck.md                           # without a deckmd folder (npm)
 ```
 
 - It opens the launcher page in jsdom as a browser would and runs `boot.js → deck.js → pack.js` unchanged. So the result is the same as with the E key (the rules live in one place, `js/pack.js`).
@@ -52,7 +52,7 @@ Not found (rare): reference-style images `![][id]`, `srcset`. These are reported
 Extracts **only your own files** from a bundled file, back to their original locations. Libraries (CDN) and deckmd's own files are not extracted.
 
 ```bash
-node deckmd/tools/build.mjs talks/x/dist/x.offline.html --unpack       # → talks/x/dist/x.offline/
+node deckmd/tools/build.mjs slides/x/dist/x.offline.html --unpack       # → slides/x/dist/x.offline/
 node deckmd/tools/build.mjs x.offline.html --unpack -o out-dir/
 ```
 

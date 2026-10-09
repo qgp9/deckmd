@@ -1,7 +1,7 @@
 ---
 title: Talk title
 # plugins: [grid]       # plugins to use
-# css: [talk.css]       # CSS for this deck only (next to this file)
+# css: [deck.css]       # CSS for this deck only (next to this file)
 ---
 
 <!-- class: center -->

@@ -18,26 +18,26 @@ Once a finished deck is packed into a single `offline` file, later changes to de
 talks-repo/
   deckmd/                       ← this repository (git submodule, pinned to a tag)
   index.html                    ← templates/index.html (a one-line boot.js)
-  deck.config.js                ← templates/deck.config.js (scan: ['talks/*'])
+  deck.config.js                ← templates/deck.config.js (scan: ['slides/*'])
   themes/my/my.css              ← (optional) your shared theme (images and fonts in the same folder). theme: /themes/my in a deck's front matter or the config
-  talks/
+  slides/
     2026-10-kosesfi/
-      talk.md  img/
+      deck.md  img/
       dist/2026-10-kosesfi.offline.html    ← pack and commit when done = frozen copy
     2026-11-next-talk/
-      talk.md
+      deck.md
 ```
 
 - **Getting deckmd**: git submodule. Pin it to a tag and upgrade only deliberately. A subtree also works but mixes deckmd's history into yours. Fork only if you are going to modify deckmd. The quick way to get the same layout is `npx deckmd init --multi --repo` (a copy in `deckmd/` instead of a submodule); `npx deckmd init --multi` loads deckmd from the CDN instead.
 - **Launcher page**: one per repository, not one per deck. `boot.js` loads everything else relative to its own location (`deckmd/js/`), so this one line is the only path.
-- **Decks go under `talks/`**: at the top level, `index.html` would hide the web server's directory listing, so the deck list could not be built automatically.
-- **New deck**: `npx deckmd add <date-name> "Title"` (or copy `deckmd/templates/talk.md` to `talks/<date-name>/talk.md` by hand) and start from there.
+- **Decks go under `slides/`**: at the top level, `index.html` would hide the web server's directory listing, so the deck list could not be built automatically.
+- **New deck**: `npx deckmd add <date-name> "Title"` (or copy `deckmd/templates/deck.md` to `slides/<date-name>/deck.md` by hand) and start from there.
 - **Deck-specific CSS, plugins and images**: keep them in that deck's folder and reference them from the front matter with relative paths.
 - **Avoid**: copying deckmd into each deck (fixes drift apart), symlinks (they break on Windows, in zip files and on GitHub Pages).
 
 ## 2. Handing it to someone else
 
-- Hand over just the one-line launcher page (`<script src="https://cdn.jsdelivr.net/npm/deckmd@version/js/boot.js">`) plus `talk.md` (jsDelivr serves the npm package `deckmd`). The recipient writes their own `talk.md` using the syntax guide (`examples/syntax/talk.md`, in the repository). It opens even without a server, via a file picker.
+- Hand over just the one-line launcher page (`<script src="https://cdn.jsdelivr.net/npm/deckmd@version/js/boot.js">`) plus `slides.md` (jsDelivr serves the npm package `deckmd`). The recipient writes their own `talk.md` using the syntax guide (`examples/syntax/talk.md`, in the repository). It opens even without a server, via a file picker.
 - For a finished deck, handing over the single bundled file (E key) is enough.
 - The offline zip (`tools/release.mjs`) only exists as a tool; distributing it is on hold. Anyone who needs to work without internet can clone the repository and run `localize.mjs`.
 - Once they start accumulating several talks, switch to the structure in 1.
@@ -45,7 +45,7 @@ talks-repo/
 ## 3. Editor (later)
 
 Does not exist yet (planned). If added, it would live inside deckmd (`deckmd/editor/`), and its unit of work would be the whole repository.
-- Run a server at the top of the repository → deck list → edit `talk.md` → preview with the same `deck.js` → pack with a button.
+- Run a server at the top of the repository → deck list → edit `deck.md` → preview with the same `deck.js` → pack with a button.
 - In Chrome and Edge, picking the repository folder once would make it work without Node (File System Access API).
 - Committing directly to GitHub could come later, on top of the same unit.
 

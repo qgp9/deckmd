@@ -7,7 +7,7 @@
 //   --repo    also copies deckmd into deckmd/ (js, css, themes, plugins, templates, tools). You own the copy and the version; works offline with localize.mjs
 //   How the decks are laid out:
 //   --single  (default) one deck: index.html and slides.md (opening index.html shows it; no config needed)
-//   --multi   a talks repository, one folder per deck: index.html, deck.config.js and talks/first-talk/talk.md (opening index.html lists the decks)
+//   --multi   a talks repository, one folder per deck: index.html, deck.config.js and slides/first-deck/deck.md (opening index.html lists the decks)
 //   Creates the files in dir (default: the current folder). Nothing is overwritten: if any of them exists (with --repo also the deckmd/ folder), it stops and changes nothing.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -39,11 +39,11 @@ export function init(args) {
   if (dirs.length > 1) die(`only one folder: ${dirs.join(', ')}`);
   const target = path.resolve(dirs[0] || '.');
 
-  const deck = layout === 'single' ? 'slides.md' : 'talks/first-talk/talk.md';
+  const deck = layout === 'single' ? 'slides.md' : 'slides/first-deck/deck.md';
   const files = [
     ['index.html', mode === 'cdn' ? read('templates/index.cdn.html').replace('deckmd@VERSION', `deckmd@${version}`) : read('templates/index.html')],
     ...(layout === 'multi' ? [['deck.config.js', read('templates/deck.config.js')]] : []),
-    [deck, read('templates/talk.md')],
+    [deck, read('templates/deck.md')],
   ];
   const wanted = [...files.map(([rel]) => rel), ...(mode === 'repo' ? ['deckmd/'] : [])];
   const exists = wanted.filter(rel => fs.existsSync(path.join(target, rel)));

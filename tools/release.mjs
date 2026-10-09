@@ -9,7 +9,7 @@
 //     deckmd/                 deckmd: committed files (git archive HEAD) + vendor/ (libraries, fonts and their LICENSEs; only the used ones from what localize.mjs downloaded)
 //     index.html              templates/index.html with data-local (read from vendor/)
 //     deck.config.js          templates/deck.config.js
-//     talks/example/talk.md   templates/talk.md
+//     slides/example/deck.md   templates/deck.md
 //     README.md               how to start
 // Uncommitted changes are not included (reported if any). npm is separate: npm publish (files in package.json).
 import fs from 'node:fs';
@@ -74,8 +74,8 @@ const index = tpl('index.html').replace('<script src="deckmd/js/boot.js"></scrip
 if (!index.includes('data-local></script>')) die('could not find the boot.js tag in templates/index.html');
 fs.writeFileSync(path.join(stage, 'index.html'), index);
 fs.writeFileSync(path.join(stage, 'deck.config.js'), tpl('deck.config.js'));
-fs.mkdirSync(path.join(stage, 'talks/example'), { recursive: true });
-fs.writeFileSync(path.join(stage, 'talks/example/talk.md'), tpl('talk.md'));
+fs.mkdirSync(path.join(stage, 'slides/example'), { recursive: true });
+fs.writeFileSync(path.join(stage, 'slides/example/deck.md'), tpl('deck.md'));
 fs.writeFileSync(path.join(stage, 'README.md'), `# deckmd ${version} (offline)
 
 reveal.js slide decks from a single Markdown file. Libraries and fonts are in \`deckmd/vendor/\`, so it works without internet.
@@ -84,12 +84,12 @@ reveal.js slide decks from a single Markdown file. Libraries and fonts are in \`
 deckmd/                 deckmd (see deckmd/README.md)
 index.html              launcher page (data-local = read from vendor/)
 deck.config.js          config (deck list etc.)
-talks/example/talk.md   sample deck. Start a new talk by copying it to talks/<name>/talk.md
+slides/example/deck.md   sample deck. Start a new talk by copying it to slides/<name>/deck.md
 \`\`\`
 
 1. Start a web server: \`deckmd/tools/serve.sh\` (Windows: double-click \`deckmd\\tools\\serve.cmd\`, not yet tested on Windows)
 2. Open \`http://localhost:8000/\` in a browser → pick a deck. Edit and reload
-3. When done, pack into one file: press **E** while viewing the deck. From the command line: \`node deckmd/tools/build.mjs talks/example/talk.md\` (once, while online: \`cd deckmd && npm install\`)
+3. When done, pack into one file: press **E** while viewing the deck. From the command line: \`node deckmd/tools/build.mjs slides/example/deck.md\` (once, while online: \`cd deckmd && npm install\`)
 
 If you open index.html directly without a server, you have to pick the Markdown yourself, and images and CSS next to the deck are left out when packing.
 
