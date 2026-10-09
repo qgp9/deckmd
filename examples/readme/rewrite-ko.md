@@ -1,5 +1,7 @@
 ---
 title: deckmd 소개
+theme: catppuccin
+mode: light           # 밝은 모드 (테마가 지원할 때)
 ---
 
 <!-- tier: core; class: chapter -->
@@ -9,6 +11,8 @@ title: deckmd 소개
 # 마크다운 한 파일이 발표 덱이 된다
 
 빌드 없이 브라우저에서 보고, 끝나면 HTML 하나로 {.teaser}
+
+소스: [examples/readme/rewrite-ko.md](https://github.com/qgp9/deckmd/blob/main/examples/readme/rewrite-ko.md) {.small .muted}
 
 Note:
 deckmd 를 소개합니다. 마크다운 파일 하나로 reveal.js 발표 덱을 만드는 도구입니다.

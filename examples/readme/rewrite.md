@@ -1,5 +1,6 @@
 ---
 title: Introducing deckmd
+theme: reveal/league   # a reveal.js built-in theme
 ---
 
 <!-- tier: core; class: chapter -->
@@ -9,6 +10,8 @@ title: Introducing deckmd
 # One Markdown file becomes a slide deck
 
 View it in the browser with no build step, and end up with one HTML file {.teaser}
+
+Source: [examples/readme/rewrite.md](https://github.com/qgp9/deckmd/blob/main/examples/readme/rewrite.md) {.small .muted}
 
 Note:
 Let me introduce deckmd, a tool that turns a single Markdown file into a reveal.js slide deck.

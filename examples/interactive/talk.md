@@ -1,12 +1,15 @@
 ---
 title: Buttons and JS (example)
 size: 1920x1080
+theme: reveal/white   # a reveal.js built-in theme
 plugins: [demo.js]      # a file next to this Markdown (ways 2 and 4)
 ---
 
 # Buttons and JS
 
 Four ways to put a button on a slide and make it do something {.teaser}
+
+Source: [examples/interactive/talk.md](https://github.com/qgp9/deckmd/blob/main/examples/interactive/talk.md) {.small .muted}
 
 ---
 

@@ -11,6 +11,8 @@ A reveal.js slide deck from a single Markdown file {.teaser}
 
 Press **→** to go on · **?** for shortcuts · **E** for the helper {.small .muted}
 
+Source: [examples/intro/talk.md](https://github.com/qgp9/deckmd/blob/main/examples/intro/talk.md) {.small .muted}
+
 Note:
 This page is itself a deckmd deck: examples/intro/talk.md in the repository.
 

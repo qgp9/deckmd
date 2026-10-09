@@ -1,7 +1,7 @@
 ---
 title: A tour of deckmd syntax
 size: 1920x1080
-theme: ember        # themes/ember/ember.css (or a path to a file)
+theme: catppuccin   # themes/catppuccin/catppuccin.css (or a path to a file)
 plugins: [grid]         # plugins/grid/grid.js — ```grid cell diagrams
 # css: [my.css]         # path relative to this Markdown file
 # reveal: { transition: slide }   # override Reveal.initialize options
@@ -14,6 +14,8 @@ plugins: [grid]         # plugins/grid/grid.js — ```grid cell diagrams
 # A reveal.js deck from one Markdown file
 
 Open it with `index.html?src=examples/syntax/talk.md` {.teaser}
+
+Source: [examples/syntax/talk.md](https://github.com/qgp9/deckmd/blob/main/examples/syntax/talk.md) {.small .muted}
 
 Note:
 A `---` line splits slides; everything below the `Note:` line is speaker notes (S key).

@@ -1,6 +1,7 @@
 ---
 title: grid plugin (example)
 size: 1920x1080
+theme: solarized
 plugins: [grid]
 ---
 
@@ -9,6 +10,8 @@ plugins: [grid]
 # Cell diagrams: ```` ```grid ````
 
 Arrays, boards, calendars, memory — diagrams made of cells {.teaser}
+
+Source: [examples/grid/talk.md](https://github.com/qgp9/deckmd/blob/main/examples/grid/talk.md) {.small .muted}
 
 Note:
 Each line: "cells, text, color, ! (highlight)". Later lines override earlier ones.
