@@ -103,7 +103,7 @@ If you open `index.html` directly in the browser, the browser blocks a `file://`
 
 | Option | Meaning |
 |---|---|
-| `?src=path.md` | Deck to open |
+| `?src=path.md` | Deck to open. Only a path under the folder of `index.html` is accepted: a URL (`https://…`), a leading `/` or a `..` that climbs out of the folder is refused (`sub/../talk.md` stays inside, so it opens). A link must not be able to make the page run someone else's Markdown, because a deck's front matter can load scripts. |
 | `?deck-list` | Deck list |
 | `?core` | Only slides whose tier is `core` (short version). Slides without a `tier` follow `defaultTier` ([writing.md](writing.md)) |
 | `?draft` | Show `<!-- @@ … -->` review notes as yellow sticky notes |
