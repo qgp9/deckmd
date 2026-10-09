@@ -31,6 +31,7 @@ npx deckmd slides/x/deck.md                           # without a deckmd folder 
 ```
 
 - It opens the launcher page in jsdom as a browser would and runs `boot.js → deck.js → pack.js` unchanged. So the result is the same as with the E key (the rules live in one place, `js/pack.js`).
+- The Markdown must be under the current folder, because the launcher page is in the current folder and opens only Markdown under it. A deck outside it (`../other/talk.md`) is refused right away, with the command that works: `cd ../other && npx deckmd talk.md`. (Any file that isn't an HTML page counts as Markdown. A link inside the folder counts as inside. To look at a deck that is somewhere else, `cd` there and use `npx deckmd serve`, then press **E**.)
 - Run it from the top of your repository. The `index.html` there is used as the launcher page, so the deck is packed with the same libraries and settings as in the browser (`data-local`, `data-skip`, `data-config`, tags you wrote by hand). If there is none, a one-line `boot.js` launcher page is generated.
 - Files are read from disk. Libraries (CDN URLs) come from the local copy in `vendor/` if present, otherwise from the internet.
 - If the launcher page loads deckmd from the CDN (`…/npm/deckmd@version/…`) and that version matches this deckmd, the files in this folder are used. If it differs, you are told and the CDN copy is read.

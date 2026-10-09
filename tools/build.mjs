@@ -1,15 +1,16 @@
 #!/usr/bin/env node
 // Pack / unpack a deck — the same job as the E key in the browser, from the command line.
 //
-//   npx deckmd init [dir] [--cdn | --repo]      start a talks repository: index.html, deck.config.js, slides/first-deck/deck.md  (npx deckmd init --help)
-//   npx deckmd add <name> [title]               add a deck to a talks repository: slides/<name>/deck.md from the starter  (npx deckmd add --help)
-//   npx deckmd serve [file.md …] [--port N] [--open]   a web server to write with: one deck, a deck list, or the current folder  (npx deckmd serve --help)
+//   npx deckmd init [dir] [--cdn | --repo] [--single | --multi]   start a deck (index.html + slides.md) or a talks repository (slides/<name>/deck.md)  (npx deckmd init --help)
+//   npx deckmd add <name> [title]               add a deck to a --multi repository: slides/<name>/deck.md from the starter  (npx deckmd add --help)
+//   npx deckmd serve [file.md …] [--port N] [--open]   a web server to write with: one deck, a deck list, or the current folder as it is  (npx deckmd serve --help)
 //   node tools/build.mjs talk.md [--offline]    → <deck folder>/dist/<name>.offline.html   one file with everything inside (opens without internet, default)
 //   node tools/build.mjs talk.md --share        → <deck folder>/dist/<name>.share.html     libraries and fonts from the CDN (small, needs internet)
 //   node tools/build.mjs index.html             a page with slides written directly works too (that page is the launcher page)
 //   node tools/build.mjs packed.html --unpack   take the user files (Markdown, config, CSS, JS, images) out of a bundled file back to their original places
 //                                                (except libraries (CDN URLs) and deckmd's files) → <bundled file name>/ folder
 //   From npm: npx deckmd talk.md [--share | --unpack] (no deckmd folder needed)
+//   The Markdown must be under the current folder (the launcher page is there): cd into the deck's folder first
 //   -o out     pack: output file, unpack: folder to extract into
 //   --force    overwrite the output if it exists (otherwise an error). Never the originals (input, launcher page, config), even with --force
 //
@@ -60,6 +61,16 @@ if (UNPACK) unpack(); else await pack();
 
 // ── Pack ─────────────────────────────────────────────────────────
 async function pack() {
+  // The launcher page is always in the current folder (its index.html, or one made in memory), and deck.js opens only Markdown under
+  // the page's folder (?src). So a deck outside the current folder can't be opened: say so here, before jsdom, and say what to run.
+  // Compared by the written path, like deck.js does (no realpath): a link inside the folder counts as inside.
+  if (!/\.html?$/i.test(INPUT)) {
+    const rel = path.relative(process.cwd(), INPUT);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      console.error(`${inputs[0]} is outside the current folder: the launcher page is here and only opens Markdown under it.\nRun it from the deck's folder:  cd ${show(path.dirname(INPUT))} && npx deckmd ${path.basename(INPUT)}`);
+      process.exit(1);
+    }
+  }
   let jsdom;
   try { jsdom = (await import('jsdom')).default; } catch { die('packing needs jsdom: run npm install in the deckmd folder'); }
   const { JSDOM, VirtualConsole, requestInterceptor } = jsdom;

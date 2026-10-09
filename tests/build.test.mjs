@@ -422,14 +422,37 @@ test('serve a.md inside a project: its index.html and deck.config.js are used, o
     assert.match((await get(base)).text, /\/_deckmd\/js\/boot\.js/);
     assert.match((await get(`${base}_deckmd/config.js`)).text, /"src": "sub\/a\.md"/);
   });
-  // files outside this folder: the project can't apply, said out loud
-  const other = path.join(OUT, 'serve-project-other');
-  fs.mkdirSync(other, { recursive: true });
-  fs.writeFileSync(path.join(other, 'x.md'), '# X\n');
-  await withServe([path.join(other, 'x.md')], proj, async (base, printed) => {
-    assert.match(printed, /not using index\.html or deck\.config\.js here: the files are outside this folder/);
+  // a config that can't be extended (data-config="none"): not used, said out loud
+  fs.writeFileSync(path.join(proj, 'index.html'), '<script src="deckmd/js/boot.js" data-config="none"></script>\n');
+  await withServe(['sub/a.md'], proj, async (base, printed) => {
+    assert.match(printed, /not using index\.html or deck\.config\.js here: the project's config can't be extended/);
     assert.doesNotMatch((await get(`${base}_deckmd/config.js`)).text, /Custom|catppuccin|solarized/);
+    assert.match((await get(base)).text, /\/_deckmd\/js\/boot\.js/, 'the generated launcher');
   });
+});
+
+test('serve: the current folder is the root of the site; a deck outside it is refused with the command that works', async () => {
+  const top = path.join(OUT, 'serve-root');
+  fs.mkdirSync(path.join(top, 'work/slides/a'), { recursive: true });
+  fs.mkdirSync(path.join(top, 'work/shared'), { recursive: true });
+  fs.mkdirSync(path.join(top, 'other'), { recursive: true });
+  fs.writeFileSync(path.join(top, 'work/slides/a/deck.md'), '# A\n\n![](../../shared/dot.svg)\n');
+  fs.copyFileSync(path.join(ROOT, 'tests/fixtures/assets/img/dot.svg'), path.join(top, 'work/shared/dot.svg'));
+  fs.writeFileSync(path.join(top, 'other/x.md'), '# X\n');
+  const work = path.join(top, 'work');
+  // a deck in a subfolder: what is next to it, and elsewhere under the current folder, is served (the old root was the deck's own folder)
+  await withServe(['slides/a/deck.md'], work, async (base) => {
+    assert.match((await get(`${base}_deckmd/config.js`)).text, /"src": "slides\/a\/deck\.md"/);
+    assert.equal((await get(`${base}shared/dot.svg`)).status, 200, 'an image from a sibling folder resolves');
+    assert.equal((await get(`${base}../other/x.md`)).status, 404, 'nothing above the current folder');
+  });
+  for (const input of ['../other/x.md', path.join(top, 'other/x.md')]) {
+    const r = build(['serve', input, '--port', '0'], work);
+    assert.ok(!r.ok, input);
+    assert.match(r.err, /is outside the current folder/);
+    assert.match(r.err, /cd \.\.\/other && npx deckmd serve x\.md/);
+  }
+  assert.ok(!build(['serve', 'slides/a/deck.md', '../other/x.md', '--port', '0'], work).ok, 'one deck outside is enough to refuse');
 });
 
 const withHost = (base, p, hostHeader) => new Promise((ok, no) => {                    // a request with a chosen Host header
@@ -492,7 +515,7 @@ test('serve --host 0.0.0.0 warns that the folder is open to the network (and the
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'x.md'), '# x\n');
   await withServe(['x.md', '--host', '0.0.0.0'], dir, async (base, printed) => {
-    assert.match(printed, /WARNING: --host 0\.0\.0\.0 opens the folder of your files .* to your network/);
+    assert.match(printed, /WARNING: --host 0\.0\.0\.0 opens this whole folder .* to your network/);
     assert.equal((await get(`${base}x.md`)).status, 200);
   });
   await withServe(['x.md'], dir, async (base, printed) => assert.doesNotMatch(printed, /WARNING/));
@@ -512,6 +535,36 @@ test('serve: errors and help', () => {
   assert.ok(help.ok);
   assert.match(help.out, /serve my-deck\.md/);
   assert.doesNotMatch(help.out, /import fs/);
+});
+
+test('pack: Markdown outside the current folder is refused before anything starts, with the command that works', (t) => {
+  const top = path.join(OUT, 'pack-outside');
+  const work = path.join(top, 'work'), other = path.join(top, 'other');
+  fs.mkdirSync(path.join(work, 'talks/a'), { recursive: true });
+  fs.mkdirSync(other, { recursive: true });
+  for (const f of ['talk.md', 'd.markdown', 't.txt']) fs.writeFileSync(path.join(other, f), '# x\n');   // anything that is not an HTML page counts as Markdown
+  fs.writeFileSync(path.join(work, 'talks/a/talk.md'), '# in\n');
+  for (const input of ['../other/talk.md', path.join(other, 'talk.md'), '../other/d.markdown', '../other/t.txt']) {
+    const r = build([input, '--offline'], work);
+    assert.ok(!r.ok, input);
+    assert.match(r.err, /is outside the current folder: the launcher page is here and only opens Markdown under it/);
+    assert.match(r.err, new RegExp(`cd \\.\\./other && npx deckmd ${path.basename(input).replace('.', '\\.')}`));
+    assert.doesNotMatch(r.err, /Can't open the deck|Resume presentation|deck\.config\.js/, 'no browser error screen, no unrelated lines');
+    assert.equal(r.out, '', 'nothing printed as a result');
+  }
+  assert.ok(!fs.existsSync(path.join(other, 'dist')) && !fs.existsSync(path.join(work, 'dist')), 'no output folder anywhere');
+  // under the current folder: as before, without and with an index.html
+  assert.ok(build(['talks/a/talk.md', '--offline'], work).ok);
+  assert.ok(build(['init', '--multi'], work).ok);
+  assert.ok(build(['slides/first-deck/deck.md', '--offline'], work).ok);
+  // judged by the written path like deck.js does: a link inside the folder counts as inside
+  if (process.platform !== 'win32') {
+    fs.symlinkSync('../other', path.join(work, 'linked'));
+    try { assert.ok(build(['linked/talk.md', '--offline'], work).ok, 'a link inside the folder'); } finally { fs.unlinkSync(path.join(work, 'linked')); }
+  } else t.diagnostic('symlinks skipped on Windows');
+  // an HTML page is the launcher itself: no such rule
+  const page = build([path.join(ROOT, 'examples/page/index.html'), '--offline', '-o', path.join(top, 'page.html')], work);
+  assert.ok(page.ok, page.err);
 });
 
 test('DeckMD.version equals package.json (npm version bumps both)', () => {
