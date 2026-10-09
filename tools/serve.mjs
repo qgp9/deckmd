@@ -1,6 +1,6 @@
 // deckmd serve — a small web server to write decks with (called by build.mjs: npx deckmd serve)
 //
-//   npx deckmd serve                           serve the current folder (a project from npx deckmd init: its index.html, or the deck list from deck.config.js)
+//   npx deckmd serve                           serve this project: the current folder needs a deckmd index.html (npx deckmd init makes one)
 //   npx deckmd serve my-deck.md                serve that one deck. No index.html or config needed
 //   npx deckmd serve a.md b.md examples/*.md   a deck list of those files
 //   The current folder is the root of the site, like for packing: decks must be under it (cd into the folder that has them).
@@ -8,6 +8,8 @@
 //   are replaced by your files, so the theme, plugins and CSS of the project apply.
 //   --port N   default 8000, or the next free port; 0 = any      --open   open the browser
 //   --host H   default localhost; 0.0.0.0 opens it to your network (a phone, a friend's laptop)
+//   Only slide and web file types are served (no keys, certificates, databases or archives). In a project that is everything under the current folder;
+//   without a deckmd index.html here, only the folders of the decks you name. Your home folder (or one above it) is never served.
 //   Files are read from disk on every request: edit, then reload. Dot files and folders (.git, .env) are never served,
 //   a request whose Host is some domain name (a DNS rebinding attack) is refused, and a symbolic link is followed only inside the served folder
 //   (or into deckmd's own js/ css/ themes/ plugins/). --host 0.0.0.0 opens the folder to your network: you are warned.
@@ -26,7 +28,10 @@ const TYPES = {
   '.json': 'application/json', '.md': 'text/markdown; charset=utf-8', '.markdown': 'text/markdown; charset=utf-8', '.txt': 'text/plain; charset=utf-8',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif', '.ico': 'image/x-icon',
   '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.mp3': 'audio/mpeg', '.pdf': 'application/pdf',
+  '.htm': 'text/html; charset=utf-8', '.csv': 'text/csv; charset=utf-8', '.tsv': 'text/tab-separated-values; charset=utf-8', '.yaml': 'text/yaml; charset=utf-8', '.yml': 'text/yaml; charset=utf-8',
+  '.xml': 'application/xml', '.otf': 'font/otf', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.m4v': 'video/mp4', '.wasm': 'application/wasm', '.map': 'application/json',
 };
+const SERVED_TYPES = new Set(Object.keys(TYPES));                      // the only file types that are served: slide text, web files, images, fonts, media, data
 const PACKAGE_DIRS = new Set(['js', 'css', 'themes', 'plugins']);      // what deckmd itself serves, under /_deckmd/
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const posix = p => p.split(path.sep).join('/');
@@ -54,19 +59,27 @@ export async function serve(args) {
   // The current folder is the root of the site (images, CSS and plugins next to a deck resolve from it), so a deck must be under it.
   // Compared by the written path, like deck.js does for ?src: a link inside the folder counts as inside
   const cwd = process.cwd();
+  const within = (child, base) => child === base || child.startsWith(base + path.sep);
   const inside = f => { const r = path.relative(cwd, f); return r !== '' && !r.startsWith('..') && !path.isAbsolute(r); };
   for (const [i, f] of files.entries()) {
     if (!inside(f)) die(`${given[i]} is outside the current folder: serve shows Markdown under the current folder (it is the root of the site).\nRun it from the deck's folder:  cd ${posix(path.relative(cwd, path.dirname(f))) || '.'} && npx deckmd serve ${path.basename(f)}`);
   }
-  if (cwd === path.parse(cwd).root) die("won't serve the root of the disk: run it in the folder that has your decks");
-  // In a project (an index.html and/or a config here) with files from it: preview them with the project's settings
-  const hasIndex = fs.existsSync(path.join(cwd, 'index.html'));
-  const bootTag = hasIndex ? /<script\b[^>]*\bboot\.js[^>]*>/.exec(fs.readFileSync(path.join(cwd, 'index.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, ''))?.[0] || '' : '';   // the real tag, not the comments about it
+  // Not the folder that has everything: the root of the disk, your home folder, or a folder above it
+  const realCwd = fs.realpathSync(cwd);
+  if (realCwd === path.parse(realCwd).root || within(fs.realpathSync(os.homedir()), realCwd)) die(`won't serve ${cwd}: it is your home folder or one above it. Run it in the folder of a project or a deck.`);
+
+  // A project = a deckmd index.html here (a page that loads boot.js or deck.js). It is served as it is; the files you give only choose what to show.
+  // Without one, only the decks you name are served (their folders), so a big folder with a deck in it isn't opened up
+  const indexFile = path.join(cwd, 'index.html');
+  const indexHtml = fs.existsSync(indexFile) ? fs.readFileSync(indexFile, 'utf8').replace(/<!--[\s\S]*?-->/g, '') : null;    // without the comments about it
+  const validIndex = indexHtml !== null && /<script\b[^>]*\bsrc\s*=\s*["'](?:[^"']*\/)?(?:boot|deck)\.js(?:[?#][^"']*)?["']/i.test(indexHtml);
+  if (!files.length && !validIndex) die(`${indexHtml === null ? 'There is no index.html here' : "index.html here doesn't load deckmd (no boot.js or deck.js script)"}, so there is no project to serve.\n  npx deckmd serve my-deck.md   show one deck (no project needed)\n  npx deckmd init                start a project here`);
+  const bootTag = /<script\b[^>]*\bboot\.js[^>]*>/.exec(indexHtml || '')?.[0] || '';                  // the real tag, not the comments about it
   const configName = /\bdata-config="([^"]*)"/.exec(bootTag)?.[1] || 'deck.config.js';              // the config its index.html loads
   const configOk = /^[\w.-][\w./-]*$/.test(configName) && !configName.includes('..');                // a file in this folder; 'none' or a URL can't be extended
   const hasConfig = configOk && fs.existsSync(path.join(cwd, configName));
-  const project = files.length > 0 && (hasIndex || hasConfig) && configOk && configName !== 'none';
-  const ownIndex = project && hasIndex;                                                              // the project's index.html is the page
+  const project = files.length > 0 && (validIndex || hasConfig) && configOk && configName !== 'none';   // the project's settings apply to the files you gave
+  const ownIndex = project && validIndex;                                                              // the project's index.html is the page
   const root = cwd;
   const decks = files.map(f => ({ src: posix(path.relative(root, f)) }));
   const configUrl = ownIndex ? `/${posix(path.normalize(configName))}` : null;                      // where the page asks for its config
@@ -76,7 +89,22 @@ export async function serve(args) {
     return `// made by deckmd serve for the files you gave it\nwindow.DeckConfig = ${JSON.stringify({ title: 'Decks', ...mine }, null, 2)};\n`;
   };
   const note = !files.length ? '' : project ? `using ${[ownIndex && 'index.html', hasConfig && configName].filter(Boolean).join(' and ')} from this folder; your files replace home, src and decks`
-    : (hasIndex || fs.existsSync(path.join(cwd, 'deck.config.js'))) ? "not using index.html or deck.config.js here: the project's config can't be extended (data-config is none or not a file here)" : '';
+    : validIndex ? "not using index.html or deck.config.js here: the project's config can't be extended (data-config is none or not a file here)"
+    : indexHtml !== null ? "index.html here doesn't load deckmd (no boot.js or deck.js script), so it is not used" : '';
+
+  // What is served. File types, everywhere: slide text, web files, images, fonts, media, data (no keys, certificates, databases, archives, files without an extension).
+  // In a project: everything under the current folder, of those types. Without one: the folder of each deck you named in full, top-level *.css, and themes/ css/ js/ plugins/
+  const FIXED_DIRS = new Set(['themes', 'css', 'js', 'plugins']);
+  const deckDirs = files.map(f => posix(path.relative(cwd, path.dirname(f))));                       // '' = the current folder itself
+  const notServed = (parts, isDir) => {                                                              // why a path is not served, or null if it is
+    if (!isDir && !SERVED_TYPES.has(path.extname(parts[parts.length - 1] || '').toLowerCase())) return 'this file type is not served';
+    if (validIndex) return null;
+    const rel = parts.join('/');
+    if (deckDirs.some(d => d === '' || rel === d || rel.startsWith(`${d}/`))) return null;
+    if (parts.length === 1 && !isDir && /\.css$/i.test(rel)) return null;
+    if (FIXED_DIRS.has(parts[0])) return null;
+    return 'it is outside the folders of your decks (run it in a project, or put the file next to the deck)';
+  };
   const launcher = `<!doctype html>
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>deckmd</title></head>
@@ -105,8 +133,8 @@ export async function serve(args) {
   const text = (req, res, code, msg) => send(req, res, code, 'text/plain; charset=utf-8', `${msg}\n`);
   const sendFile = (req, res, file) => fs.readFile(file, (err, buf) => (err ? text(req, res, 404, 'Not found') : send(req, res, 200, TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream', buf)));
   const serveFile = (req, res, file, bases) => resolveInside(file, bases, (code, real) => (code ? text(req, res, code, code === 403 ? 'Forbidden: a symbolic link that leaves the served folder' : 'Not found') : sendFile(req, res, real)));
-  const listing = (dir, urlPath) => {
-    const rows = fs.readdirSync(dir, { withFileTypes: true }).filter(d => !d.name.startsWith('.')).sort((a, b) => a.name.localeCompare(b.name))
+  const listing = (dir, urlPath, parts) => {
+    const rows = fs.readdirSync(dir, { withFileTypes: true }).filter(d => !d.name.startsWith('.') && !notServed([...parts, d.name], d.isDirectory())).sort((a, b) => a.name.localeCompare(b.name))
       .map(d => { const name = d.name + (d.isDirectory() ? '/' : ''); return `<li><a href="${encodeURIComponent(d.name)}${d.isDirectory() ? '/' : ''}">${esc(name)}</a></li>`; });
     return `<!doctype html>\n<meta charset="utf-8"><title>Index of ${esc(urlPath)}</title>\n<h1>Index of ${esc(urlPath)}</h1>\n<ul>\n${rows.join('\n')}\n</ul>\n`;   // deck.js reads the links of this page to find decks (scan)
   };
@@ -131,11 +159,13 @@ export async function serve(args) {
       if (code) return text(req, res, code, code === 403 ? 'Forbidden: a symbolic link that leaves the served folder' : 'Not found');
       fs.stat(real, (err, st) => {
         if (err) return text(req, res, 404, 'Not found');
+        const why = notServed(parts, st.isDirectory());
+        if (why) return text(req, res, 404, `Not found (not served: ${why})`);
         if (!st.isDirectory()) return sendFile(req, res, real);
         if (!pathname.endsWith('/')) { res.writeHead(301, { location: `${pathname}/` }); return res.end(); }
         const index = path.join(target, 'index.html');
-        if (fs.existsSync(index)) return serveFile(req, res, index, [realRoot, ...packagePublic]);
-        send(req, res, 200, TYPES['.html'], listing(real, pathname));
+        if (fs.existsSync(index) && !notServed([...parts, 'index.html'], false)) return serveFile(req, res, index, [realRoot, ...packagePublic]);
+        send(req, res, 200, TYPES['.html'], listing(real, pathname, parts));
       });
     });
   });
@@ -149,10 +179,10 @@ export async function serve(args) {
 
   const url = `http://${host === '0.0.0.0' || host === '::' ? 'localhost' : host}:${actual}/`;
   const lan = host === '0.0.0.0' ? Object.values(os.networkInterfaces()).flat().find(i => i && i.family === 'IPv4' && !i.internal) : null;
-  const what = !files.length ? 'the current folder' : files.length === 1 ? given[0] : `${files.length} decks`;
+  const what = !files.length ? 'this project (the index.html here)' : files.length === 1 ? given[0] : `${files.length} decks`;
   console.log(`deckmd serve: ${what}${note ? `\n  ${note}` : ''}
   ${url}${lan ? `\n  ${url.replace('localhost', lan.address)}   (on your network)` : ''}
-${['localhost', '127.0.0.1', '::1'].includes(host.toLowerCase()) ? '' : `\n  WARNING: --host ${host} opens this whole folder (dot files excepted) to your network. Anyone who can reach this port can read it.`}
+${['localhost', '127.0.0.1', '::1'].includes(host.toLowerCase()) ? '' : `\n  WARNING: --host ${host} opens ${validIndex ? 'this whole folder' : 'the folders of your decks'} (dot files excepted, web file types only) to your network. Anyone who can reach this port can read it.`}
 Reload the page to see edits. Ctrl+C to stop.`);
   if (open) spawn(...(process.platform === 'darwin' ? ['open', [url]] : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : ['xdg-open', [url]]), { stdio: 'ignore', detached: true }).on('error', () => {}).unref();
 

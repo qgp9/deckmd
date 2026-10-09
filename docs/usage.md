@@ -78,22 +78,26 @@ Then add `data-local` to the tag in the launcher page.
 ## Viewing while you write
 
 ```bash
-npx deckmd serve                          # serve the current folder (a project made by init): its index.html, or the deck list
+npx deckmd serve                          # this project: the current folder, which needs a deckmd index.html (npx deckmd init makes one)
 npx deckmd serve my-deck.md               # one deck, nothing else needed: no index.html, no config
 npx deckmd serve a.md b.md examples/*.md  # a deck list of those files
 ```
 
 `http://localhost:8000/` → deck list → deck. Edit the Markdown and reload, and it redraws the same slide you were on.
 
-- With files and no project in the folder, the server makes the launcher page and the config itself and serves deckmd from the package (under `/_deckmd/`). Your files, and what they refer to (images, CSS, plugins next to them), are read from disk on every request, so images and paths resolve relative to the Markdown as usual. Decks in different folders are fine as long as they are under the current folder.
-- **The current folder is the root of the site**, as it is for [packing](packing.md): a deck must be under it, and a deck outside is refused with the command that works (`cd ../other && npx deckmd serve x.md`). So images and CSS next to a deck, or in a sibling folder, resolve as usual, and nothing above the current folder can be reached. Running it in the root of the disk is refused.
-- With files **from inside a project** (the folder has an `index.html` and/or `deck.config.js`), the project is used: its `index.html` is the page (so its deckmd version), and its `deck.config.js` (or the file its `boot.js` tag names with `data-config`) is followed. Only `home`, `src` and `decks` are replaced by your files, so the theme, plugins, CSS and mode of the project apply while you preview one deck. The first lines `serve` prints say what it used. If the project's config can't be extended (`data-config="none"`), it says so and uses the generated launcher instead.
-- Without files, it serves the current folder as it is, with folder listings (so a `decks: 'auto'` deck list can scan `slides/*`). This replaces `python3 -m http.server`; any static server still works.
-- `--port N` (default 8000, or the next free port; `0` = any), `--open` (open the browser), `--host 0.0.0.0` (open it to your network, for a phone or a friend's laptop). The default is `localhost` only.
-- Dot files and folders (`.git`, `.env`) are never served, and of deckmd itself only `js/ css/ themes/ plugins/` are.
+**What is served** depends on whether the current folder is a project, meaning it has a deckmd `index.html` (a page with a `<script>` that loads `boot.js` or `deck.js`):
+
+| | In a project | No project (files given) | Neither |
+|---|---|---|---|
+| `serve` | the folder as it is | n/a | refused, with `npx deckmd init` / `serve my-deck.md` as the way out |
+| `serve a.md …` | the folder as it is; its `index.html` is the page and its `deck.config.js` is followed, only `home`, `src` and `decks` are replaced by your files, so the theme, plugins and CSS apply | the server makes the launcher page and config; only the **folders of the decks you named** (in full), top-level `*.css`, and `themes/ css/ js/ plugins/` | |
+
+- **The current folder is the root of the site**, as it is for [packing](packing.md): a deck must be under it, and a deck outside is refused with the command that works (`cd ../other && npx deckmd serve x.md`). Your home folder, a folder above it, and the root of the disk are refused. Without a project, a file outside the decks' folders (a sibling `assets/`, a top-level `README.md`) is a 404 that says why: put it next to the deck, or run it in a project.
+- **Only slide and web file types** are served, everywhere: Markdown, HTML, CSS, JS, JSON, CSV/TSV, YAML, XML, images, fonts, audio, video, PDF, `.wasm`. Keys, certificates, databases, archives and files without an extension are a 404, and they don't show in folder listings. Dot files and folders (`.git`, `.env`) are never served. Of deckmd itself, only `js/ css/ themes/ plugins/` are (under `/_deckmd/`).
+- With a project, folder listings are served so a `decks: 'auto'` deck list can scan `slides/*`; this replaces `python3 -m http.server`, and any static server still works. Files are read from disk on every request, so images and paths resolve relative to the Markdown as usual. The first lines `serve` prints say what it used.
+- `--port N` (default 8000, or the next free port; `0` = any), `--open` (open the browser), `--host 0.0.0.0` (open it to your network, for a phone or a friend's laptop). The default is `localhost` only. With another host `serve` prints a warning that the folder is open to your network.
 - A request whose `Host` is a domain name is refused (403). Only `localhost`, an IP address, or the name you gave `--host` is accepted, so a web page on some other site can't read your files through your browser by pointing its domain at 127.0.0.1 (DNS rebinding).
 - A symbolic link is followed only while its real path stays inside the served folder (or deckmd's own `js/ css/ themes/ plugins/`, so a `deckmd/` that links to the package works). A link to a file outside gets 403.
-- `--host 0.0.0.0` opens the whole folder (dot files excepted) to your network, and `serve` prints a warning when you use a host other than localhost.
 - A repository checkout also has `tools/serve.sh` (python3 → node → php, whichever exists; `serve.cmd` and `serve.ps1` for Windows, not tested there).
 - Press **E** on a served deck to pack it: that works the same as on any other page.
 
