@@ -84,6 +84,8 @@ python3 -m http.server           # 아무 정적 웹 서버나. http://localhost
 
 `init` 은 덮어쓰지 않는다. 파일이 하나라도 있으면 (`--repo` 는 `deckmd/` 도) 아무것도 바꾸지 않고 멈춘다. 손으로 하거나 git submodule 로 하려면 [docs/usage.md](docs/usage.md) (영문).
 
+`--multi` 저장소에서는 `npx deckmd add my-talk "발표 제목"` 으로 덱을 더한다: 견본에서 `talks/my-talk/talk.md` 를 만들고 제목과 날짜를 채우며, 덱 목록에 바로 뜬다.
+
 인터넷 없이 쓰는 법, 서버 없이 여는 법, 주소 옵션, 설정은 [docs/usage.md](docs/usage.md).
 
 ## 문서

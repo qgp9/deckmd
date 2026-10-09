@@ -22,6 +22,7 @@ tools/
   serve.sh, .cmd, .ps1  web server for live preview while writing
   build.mjs             command-line pack and unpack (runs pack.js unchanged in jsdom)
   init.mjs              npx deckmd init: starts a talks repository from templates/ (build.mjs hands over to it)
+  add.mjs               npx deckmd add: adds talks/<name>/talk.md from the starter
   localize.mjs          downloads CDN libraries, fonts and licenses into vendor/
   release.mjs           builds the offline zip (distribution on hold)
 scripts/version.mjs     repo maintenance, not published: npm version copies the new version into DeckMD.version

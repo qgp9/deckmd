@@ -25,7 +25,17 @@ npx deckmd init [dir] [--cdn | --repo] [--single | --multi]
 | `--single` (default) | one deck: `index.html` + `slides.md`. Opening `index.html` shows it, no config needed |
 | `--multi` | a talks repository: `index.html`, `deck.config.js`, `talks/first-talk/talk.md`. Opening `index.html` lists the decks |
 
-`init` never overwrites. If any file it would create exists (with `--repo`, also `deckmd/`), it stops and changes nothing. Add more decks to a `--multi` repository by copying a folder under `talks/`.
+`init` never overwrites. If any file it would create exists (with `--repo`, also `deckmd/`), it stops and changes nothing.
+
+### `npx deckmd add`
+
+Adds a deck to a `--multi` (talks) repository; run it at the top of the repository.
+
+```bash
+npx deckmd add my-talk "My talk title"      # → talks/my-talk/talk.md
+```
+
+It copies the starter (`templates/talk.md`) with the title and today's date filled in. The title is optional (`my-talk` → "My talk"; an unquoted `add my-talk My talk title` works too). The name is the folder name: no `/ \ : * ? " < > |`, and no leading dot. It never overwrites an existing `talk.md`. The deck shows up in the deck list on the next reload.
 
 ### Repository by hand (git submodule)
 

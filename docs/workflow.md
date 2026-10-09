@@ -31,7 +31,7 @@ talks-repo/
 - **Getting deckmd**: git submodule. Pin it to a tag and upgrade only deliberately. A subtree also works but mixes deckmd's history into yours. Fork only if you are going to modify deckmd. The quick way to get the same layout is `npx deckmd init --multi --repo` (a copy in `deckmd/` instead of a submodule); `npx deckmd init --multi` loads deckmd from the CDN instead.
 - **Launcher page**: one per repository, not one per deck. `boot.js` loads everything else relative to its own location (`deckmd/js/`), so this one line is the only path.
 - **Decks go under `talks/`**: at the top level, `index.html` would hide the web server's directory listing, so the deck list could not be built automatically.
-- **New deck**: copy `deckmd/templates/talk.md` to `talks/<date-name>/talk.md` and start from there.
+- **New deck**: `npx deckmd add <date-name> "Title"` (or copy `deckmd/templates/talk.md` to `talks/<date-name>/talk.md` by hand) and start from there.
 - **Deck-specific CSS, plugins and images**: keep them in that deck's folder and reference them from the front matter with relative paths.
 - **Avoid**: copying deckmd into each deck (fixes drift apart), symlinks (they break on Windows, in zip files and on GitHub Pages).
 

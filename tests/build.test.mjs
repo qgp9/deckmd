@@ -39,7 +39,7 @@ test('offline: everything inside, no outside references', () => {
   assert.deepEqual(external(html), []);
   assert.deepEqual(links(html), []);
   const k = keys(html);
-  for (const want of ['js/defaults.js', 'js/deck.js', 'js/pack.js', 'css/base.css', 'themes/ember/ember.css', 'plugins/grid/grid.js', 'plugins/grid/grid.css', 'deck.config.js']) assert.ok(k.includes(want), want);
+  for (const want of ['js/defaults.js', 'js/deck.js', 'js/pack.js', 'css/base.css', 'themes/solarized/solarized.css', 'plugins/grid/grid.js', 'plugins/grid/grid.css', 'deck.config.js']) assert.ok(k.includes(want), want);
   assert.ok(k.some(x => x.startsWith('https://cdn.jsdelivr.net/npm/reveal.js@')), 'library keys are CDN URLs');
   assert.match(html, /url\(["']?data:font\/woff2;base64,/);
   assert.match(html, /<script type="text\/markdown" data-base="[^"]*" data-path="examples\/grid\/talk\.md">/, 'original location of the Markdown');
@@ -259,6 +259,53 @@ test('init: every combination makes a project that packs (offline, no outside re
     assert.deepEqual(external(html), [], `${mode} ${layout}`);
     assert.match(html, /Talk title/);
   }
+});
+
+test('add <name> [title]: talks/<name>/talk.md from the starter, title and date filled in; never overwrites', () => {
+  const dir = path.join(OUT, 'add');
+  fs.mkdirSync(dir, { recursive: true });
+  const bare = build(['add', 'x'], dir);
+  assert.ok(!bare.ok);
+  assert.match(bare.err, /doesn't look like a talks repository/);
+  assert.ok(build(['init', '--multi'], dir).ok);
+
+  const r = build(['add', 'my-slide-dir', 'My', 'slide', 'title'], dir);   // an unquoted title is joined
+  assert.ok(r.ok, r.err);
+  const md = fs.readFileSync(path.join(dir, 'talks/my-slide-dir/talk.md'), 'utf8');
+  assert.match(md, /^---\ntitle: "My slide title"\n/);
+  assert.match(md, /^# My slide title$/m);
+  assert.doesNotMatch(md, /Talk title|2026-00-00/);
+  assert.match(md, new RegExp(`· ${new Date().toLocaleDateString('sv-SE')}\\]`));
+
+  assert.ok(build(['add', 'quick-demo'], dir).ok);
+  assert.match(fs.readFileSync(path.join(dir, 'talks/quick-demo/talk.md'), 'utf8'), /^---\ntitle: "Quick demo"\n/, 'title from the name');
+
+  const again = build(['add', 'my-slide-dir', 'Other'], dir);
+  assert.ok(!again.ok);
+  assert.match(again.err, /already exists: talks\/my-slide-dir\/talk\.md/);
+  assert.equal(fs.readFileSync(path.join(dir, 'talks/my-slide-dir/talk.md'), 'utf8'), md, 'not overwritten');
+
+  for (const bad of ['../x', 'a/b', '.hidden', 'a:b', 'what?']) {
+    const e = build(['add', bad], dir);
+    assert.ok(!e.ok, bad);
+    assert.match(e.err, /is a folder name/);
+  }
+  assert.ok(!build(['add'], dir).ok);
+  assert.ok(!build(['add', 'x', '--nope'], dir).ok);
+  assert.match(build(['add', '--help'], dir).out, /add <name> \[title\]/);
+  assert.deepEqual(fs.readdirSync(path.join(dir, 'talks')).sort(), ['first-talk', 'my-slide-dir', 'quick-demo'], 'invalid names created nothing');
+});
+
+test('add: a title with quotes and colons is still valid front matter, and the new deck packs', () => {
+  const dir = path.join(OUT, 'add-pack');
+  fs.mkdirSync(dir, { recursive: true });
+  assert.ok(build(['init', '--multi'], dir).ok);
+  assert.ok(build(['add', 'odd', 'He said "hi": it\'s #1'], dir).ok);
+  const r = build(['talks/odd/talk.md', '--offline'], dir);
+  assert.ok(r.ok, r.err);
+  const packed = fs.readdirSync(path.join(dir, 'talks/odd/dist')).find(f => /\.offline\.html$/.test(f));
+  const html = fs.readFileSync(path.join(dir, 'talks/odd/dist', packed), 'utf8');
+  assert.match(html, /<title>He said &quot;hi&quot;: it's #1<\/title>|<title>He said "hi": it's #1<\/title>/);
 });
 
 test('DeckMD.version equals package.json (npm version bumps both)', () => {
