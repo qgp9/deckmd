@@ -5,6 +5,8 @@
 마크다운 한 파일로 만드는 reveal.js 발표 덱.
 빌드 없이 브라우저에서 바로 보고, 끝나면 HTML 파일 하나로 묶는다.
 
+**데모: [qgp9.github.io/deckmd](https://qgp9.github.io/deckmd/)** — 이 페이지도 deckmd 덱입니다. 예제 전체는 [?deck-list](https://qgp9.github.io/deckmd/?deck-list) (영문).
+
 ```markdown
 ---
 title: 첫 발표

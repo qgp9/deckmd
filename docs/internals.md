@@ -24,6 +24,7 @@ tools/
   localize.mjs          downloads CDN libraries, fonts and licenses into vendor/
   release.mjs           builds the offline zip (distribution on hold)
 scripts/version.mjs     repo maintenance, not published: npm version copies the new version into DeckMD.version
+scripts/site.mjs        builds the demo site into _site/ (intro deck as home, all examples in ?deck-list); .github/workflows/pages.yml deploys it on push to main
 vendor/                 (not in git) local copy fetched by localize.mjs
 examples/<deck>/        example decks: syntax (syntax guide), grid (cell diagrams), readme, page (a deck written in HTML), interactive
 docs/                   documentation

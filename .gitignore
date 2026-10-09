@@ -5,3 +5,4 @@ vendor/
 tests/out/
 .cloudflare/
 notes/
+_site/

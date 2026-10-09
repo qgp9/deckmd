@@ -5,6 +5,8 @@ English · [한국어](README.ko.md)
 A reveal.js slide deck from a single Markdown file.
 View it in the browser right away with no build step, and when you're done, pack it into one HTML file.
 
+**Demo: [qgp9.github.io/deckmd](https://qgp9.github.io/deckmd/)** — the page itself is a deckmd deck; all examples are under [?deck-list](https://qgp9.github.io/deckmd/?deck-list).
+
 ```markdown
 ---
 title: My first talk
