@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
+import os from 'node:os';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -332,7 +333,15 @@ test('serve my-deck.md: a launcher page and a config made on the fly, deckmd fro
   fs.copyFileSync(path.join(ROOT, 'tests/fixtures/assets/img/dot.svg'), path.join(dir, 'img/dot.svg'));
   fs.writeFileSync(path.join(dir, 'my deck.md'), '---\ntitle: Served\n---\n\n# One\n\n![](img/dot.svg)\n');
   fs.writeFileSync(path.join(dir, '.secret'), 'no');
+  for (const f of ['key.pem', 'data.sqlite', 'backup.zip', 'id_rsa']) fs.writeFileSync(path.join(dir, f), 'private');   // not slide or web files
+  for (const f of ['notes.txt', 'data.csv', 'font.woff2']) fs.writeFileSync(path.join(dir, f), 'ok');
   await withServe(['my deck.md'], dir, async (base) => {
+    for (const p of ['key.pem', 'data.sqlite', 'backup.zip', 'id_rsa']) {
+      const r = await get(base + p);
+      assert.equal(r.status, 404, p);
+      assert.match(r.text, /this file type is not served/, p);
+    }
+    for (const p of ['notes.txt', 'data.csv', 'font.woff2']) assert.equal((await get(base + p)).status, 200, p);
     const index = await get(base);
     assert.equal(index.status, 200);
     assert.match(index.type, /text\/html/);
@@ -383,10 +392,33 @@ test('serve (no files): the current folder as it is: its own index.html, folder 
     assert.equal((await get(`${base}.git/config`)).status, 404);
     assert.doesNotMatch((await get(`${base}slides/`)).text, /\.git/);
   });
-  const bare = path.join(OUT, 'serve-bare');                       // no index.html → a listing
+  // without files it needs a deckmd index.html: there is a project to serve, or there is nothing to serve
+  const bare = path.join(OUT, 'serve-bare');
   fs.mkdirSync(bare, { recursive: true });
   fs.writeFileSync(path.join(bare, 'x.md'), '# x\n');
-  await withServe([], bare, async (base) => assert.match((await get(base)).text, /href="x\.md"/));
+  const none = build(['serve', '--port', '0'], bare);
+  assert.ok(!none.ok);
+  assert.match(none.err, /There is no index\.html here, so there is no project to serve/);
+  assert.match(none.err, /npx deckmd serve my-deck\.md/);
+  assert.match(none.err, /npx deckmd init/);
+  fs.writeFileSync(path.join(bare, 'index.html'), '<html><body>my own site</body></html>');
+  const foreign = build(['serve', '--port', '0'], bare);
+  assert.ok(!foreign.ok);
+  assert.match(foreign.err, /index\.html here doesn't load deckmd/);
+  fs.writeFileSync(path.join(bare, 'index.html'), '<!-- <script src="deckmd/js/boot.js"></script> just a comment -->\n<html></html>');
+  assert.ok(!build(['serve', '--port', '0'], bare).ok, 'a comment about boot.js is not a launcher');
+  fs.writeFileSync(path.join(bare, 'index.html'), "<script src='https://cdn.jsdelivr.net/npm/deckmd@0.2.1/js/boot.js'></script>");
+  await withServe([], bare, async (base) => assert.match((await get(`${base}x.md`)).text, /# x/));       // a launcher from the CDN counts
+  fs.writeFileSync(path.join(bare, 'index.html'), '<script src="js/deck.js"></script>');
+  await withServe([], bare, async (base) => assert.equal((await get(`${base}x.md`)).status, 200));      // so does one that lists the tags itself
+});
+
+test('serve: never your home folder or one above it', () => {
+  for (const dir of [os.homedir(), path.dirname(os.homedir())]) {
+    const r = build(['serve', '--port', '0'], dir);
+    assert.ok(!r.ok, dir);
+    assert.match(r.err, /won't serve .* it is your home folder or one above it/);
+  }
 });
 
 test('serve a.md inside a project: its index.html and deck.config.js are used, only home, src and decks are replaced', async () => {
@@ -431,6 +463,30 @@ test('serve a.md inside a project: its index.html and deck.config.js are used, o
   });
 });
 
+test('serve x.md without a project: only the deck folders, top-level css, themes/ css/ js/ plugins/ and the allowed types are served', async () => {
+  const dir = path.join(OUT, 'serve-policy');
+  for (const d of ['slides/a/img', 'slides/b', 'private', 'themes', 'plugins/p', 'assets']) fs.mkdirSync(path.join(dir, d), { recursive: true });
+  const put = (rel, text = 'x') => fs.writeFileSync(path.join(dir, rel), text);
+  put('slides/a/deck.md', '# A\n'); put('slides/a/img/x.png'); put('slides/a/notes.pem');
+  put('slides/b/other.md'); put('private/secret.txt'); put('assets/logo.png'); put('themes/t.css'); put('plugins/p/p.js');
+  put('top.css'); put('top.json'); put('README.md'); put('index.html', '<html>my own site</html>');
+  await withServe(['slides/a/deck.md'], dir, async (base, printed) => {
+    assert.match(printed, /index\.html here doesn't load deckmd .* so it is not used/);
+    assert.match((await get(base)).text, /_deckmd\/js\/boot\.js/, 'the generated launcher, not that index.html');
+    for (const p of ['slides/a/deck.md', 'slides/a/img/x.png', 'themes/t.css', 'plugins/p/p.js', 'top.css', '_deckmd/config.js']) assert.equal((await get(base + p)).status, 200, p);
+    for (const [p, why] of [['slides/b/other.md', /outside the folders of your decks/], ['private/secret.txt', /outside the folders/], ['assets/logo.png', /outside the folders/],
+      ['README.md', /outside the folders/], ['top.json', /outside the folders/], ['slides/', /outside the folders/], ['slides/a/notes.pem', /file type/]]) {
+      const r = await get(base + p);
+      assert.equal(r.status, 404, p);
+      assert.match(r.text, why, p);
+    }
+    const list = (await get(`${base}slides/a/`)).text;
+    assert.match(list, /href="deck\.md"/);
+    assert.match(list, /href="img\/"/);
+    assert.doesNotMatch(list, /notes\.pem/, 'not listed either');
+  });
+});
+
 test('serve: the current folder is the root of the site; a deck outside it is refused with the command that works', async () => {
   const top = path.join(OUT, 'serve-root');
   fs.mkdirSync(path.join(top, 'work/slides/a'), { recursive: true });
@@ -443,9 +499,15 @@ test('serve: the current folder is the root of the site; a deck outside it is re
   // a deck in a subfolder: what is next to it, and elsewhere under the current folder, is served (the old root was the deck's own folder)
   await withServe(['slides/a/deck.md'], work, async (base) => {
     assert.match((await get(`${base}_deckmd/config.js`)).text, /"src": "slides\/a\/deck\.md"/);
+    assert.equal((await get(`${base}shared/dot.svg`)).status, 404, 'without a project: the folders of the decks only');
+    assert.equal((await get(`${base}../other/x.md`)).status, 404, 'nothing above the current folder');
+  });
+  fs.writeFileSync(path.join(work, 'index.html'), '<script src="deckmd/js/boot.js"></script>\n');          // with a project: the whole folder
+  await withServe(['slides/a/deck.md'], work, async (base) => {
     assert.equal((await get(`${base}shared/dot.svg`)).status, 200, 'an image from a sibling folder resolves');
     assert.equal((await get(`${base}../other/x.md`)).status, 404, 'nothing above the current folder');
   });
+  fs.rmSync(path.join(work, 'index.html'));
   for (const input of ['../other/x.md', path.join(top, 'other/x.md')]) {
     const r = build(['serve', input, '--port', '0'], work);
     assert.ok(!r.ok, input);
@@ -483,9 +545,10 @@ test('serve: a symbolic link is followed only while it stays inside the served f
   fs.mkdirSync(path.join(dir, 'inner'), { recursive: true });
   fs.mkdirSync(outside, { recursive: true });
   fs.writeFileSync(path.join(dir, 'ok.md'), '# ok\n');
+  fs.writeFileSync(path.join(dir, 'index.html'), '<script src="deckmd/js/boot.js"></script>\n');   // a project: served as it is
   fs.writeFileSync(path.join(dir, 'inner/a.txt'), 'inner');
   fs.writeFileSync(path.join(outside, 'secret.txt'), 'top secret');
-  fs.symlinkSync('ok.md', path.join(dir, 'link-file-in'));                       // stays inside
+  fs.symlinkSync('ok.md', path.join(dir, 'link-file-in.md'));                       // stays inside
   fs.symlinkSync('inner', path.join(dir, 'link-dir-in'));
   fs.symlinkSync(outside, path.join(dir, 'link-dir-out'));                       // leaves the folder
   fs.symlinkSync(path.join(outside, 'secret.txt'), path.join(dir, 'link-file-out'));
@@ -495,7 +558,7 @@ test('serve: a symbolic link is followed only while it stays inside the served f
   fs.symlinkSync(path.join(ROOT, 'package.json'), path.join(dir, 'link-pkg'));
   fs.symlinkSync(path.join(ROOT, 'tools'), path.join(dir, 'deckmd/tools'));
   try { await withServe([], dir, async (base) => {
-    assert.equal((await get(`${base}link-file-in`)).status, 200);
+    assert.equal((await get(`${base}link-file-in.md`)).status, 200);
     assert.equal((await get(`${base}link-dir-in/a.txt`)).text, 'inner');
     assert.equal((await get(`${base}deckmd/js/deck.js`)).status, 200);
     assert.equal((await get(`${base}deckmd/themes/ember/ember.css`)).status, 200);
@@ -515,7 +578,7 @@ test('serve --host 0.0.0.0 warns that the folder is open to the network (and the
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'x.md'), '# x\n');
   await withServe(['x.md', '--host', '0.0.0.0'], dir, async (base, printed) => {
-    assert.match(printed, /WARNING: --host 0\.0\.0\.0 opens this whole folder .* to your network/);
+    assert.match(printed, /WARNING: --host 0\.0\.0\.0 opens the folders of your decks .* to your network/);
     assert.equal((await get(`${base}x.md`)).status, 200);
   });
   await withServe(['x.md'], dir, async (base, printed) => assert.doesNotMatch(printed, /WARNING/));
