@@ -4,6 +4,8 @@ How to create, view, and pack a deck. For syntax see [writing.md](writing.md), f
 
 ## Setup: three ways
 
+The quickest start is [`npx deckmd init`](#npx-deckmd-init), which writes the files for you. The table is what those files contain.
+
 | Way | Launcher page (`index.html`) | When |
 |---|---|---|
 | **Repository** (recommended) | `<script src="deckmd/js/boot.js"></script>` | A talks repository where your decks keep piling up |

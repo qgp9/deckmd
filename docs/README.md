@@ -2,7 +2,7 @@
 
 | Document | Contents |
 |---|---|
-| [usage.md](usage.md) | **Usage**: setup (repository, CDN, without internet), live preview while writing, ways to open a deck, URL options, keyboard shortcuts, config, packing |
+| [usage.md](usage.md) | **Usage**: `npx deckmd init`, `add` and `serve`, setup (CDN, repository, without internet), live preview while writing, ways to open a deck, URL options, keyboard shortcuts, config, packing |
 | [writing.md](writing.md) | **Writing slides**: using reveal.js features from Markdown, syntax added by deckmd |
 | [styling.md](styling.md) | **Styling**: reveal.js themes and variables, deckmd themes, layout classes, color variables, code colors, modes |
 | [fonts.md](fonts.md) | Changing fonts, or not downloading them |

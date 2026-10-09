@@ -71,7 +71,7 @@ DeckMD.afterRender(section => { /* adjust the slide after it is built */ });
 | `DeckMD.md` | The markdown-it instance |
 | `DeckMD.config` | This deck's front matter |
 | `DeckMD.esc(text)` | HTML escape |
-| `DeckMD.version` | The deckmd version (`'0.1.0'`). For information (messages such as "requires deckmd 0.2 or later", bug reports) |
+| `DeckMD.version` | The deckmd version (a string like `'0.2.0'`). For information (messages such as "requires deckmd 0.2 or later", bug reports) |
 
 - A plugin that must work across deckmd versions should check for the feature it needs instead of comparing version numbers: `if (!DeckMD.registerRun) { … }`. Comparing version strings is error-prone (`'0.10' < '0.9'`).
 - Paths can be written as literal strings or computed (when packing, what was actually loaded is recorded and embedded).
