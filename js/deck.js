@@ -31,6 +31,10 @@
     : pageSections ? new URL(pageMetaEl?.dataset.base || './', pageBase)
     : new URL(srcPath, pageBase);
 
+  // Is this value under this page's folder? Resolve it the way the browser would (the URL parser also folds `..`, `%2e%2e`,
+  // `\`, tabs and `user@host` tricks) and compare with the folder's URL (pageBase ends with /). See getSource.
+  const underPage = (p) => { try { return new URL(p, pageBase).href.startsWith(pageBase); } catch { return false; } };
+
   const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
   // ── API for plugins ─────────────────────────────────────────────
@@ -356,6 +360,13 @@
   async function getSource() {
     if (inlineMd) return inlineMd.textContent.replace(/^\n/, '').replace(/<\\\/script/gi, '</script');   // packing (pack.js) stores </script as <\/script
     if (params.has('pick')) return local.open();                          // pick directly even when served (for testing)
+    // ?src comes from the address: anyone who can hand you a link could point it at their own Markdown, and that Markdown's
+    // front matter can load scripts (plugins: [URL]) that then run on this origin. So only a relative path under this page's
+    // folder is opened (a URL, a leading /, or a .. that climbs out of it all resolve outside, and are refused).
+    // (Not for <html data-src>: that is written into the page itself, e.g. by build.mjs.)
+    if (params.get('src') && !underPage(params.get('src'))) {
+      throw new Error(`?src=${params.get('src')} is not opened: ?src must be a path under this page's folder, because a deck's front matter can load scripts that run on this page.`);
+    }
     try {
       const res = await fetch(srcUrl);
       if (!res.ok) throw new Error(`${srcPath}: ${res.status}`);
