@@ -1,8 +1,8 @@
 <!doctype html>
 <!--
-  The launcher page for your talks repository. Put this file at the top of the repository as index.html, and deckmd in a deckmd/ folder (git submodule, etc.).
-    index.html                          deck list (home: 'list' in deck.config.js)
-    index.html?src=talks/2026-10-talk/talk.md  one deck
+  The launcher page for your talks repository. Put this file at the top of the repository as index.html, and deckmd in a deckmd/ folder (npx deckmd init --repo, a git submodule, etc.). Without a deckmd/ folder: npx deckmd init.
+    index.html                  opens the deck (src in deck.config.js, default slides.md), or the deck list if home: 'list'
+    index.html?src=any/deck.md  one deck
   boot.js loads the libraries (CDN), theme and deck.js in order. Options:
     data-local              libraries and fonts from deckmd/vendor/ (offline; run node deckmd/tools/localize.mjs first)
     data-skip="highlight"   leave out (reveal, highlight, notes, font, markdown, yaml, pack, config)

@@ -69,22 +69,20 @@ reveal.js 위에 마크다운 문법 몇 가지를 더했다.
 ## 시작하기
 
 ```bash
-# 내 발표 저장소에 템플릿 넣기 (처음 한 번)
-git submodule add <deckmd 저장소> deckmd        # 또는 deckmd/ 에 복사
-cp deckmd/templates/index.html deckmd/templates/deck.config.js .
-mkdir -p talks/첫발표 && cp deckmd/templates/talk.md talks/첫발표/
-
-# 쓰면서 보기: http://localhost:8000/ → 덱 고르기. 고치고 새로고침
-deckmd/tools/serve.sh           # Windows: deckmd\tools\serve.cmd (아직 Windows 에서 시험하지 않음)
+npx deckmd init                  # index.html + slides.md (deckmd 는 CDN 에서)
+python3 -m http.server           # 아무 정적 웹 서버나. http://localhost:8000/ 을 열고 slides.md 를 고친다
 ```
 
-끝나면 덱을 보다가 **E** → "오프라인". 결과 파일을 덱 옆에 커밋해 두면 그것이 얼린 판이다.
+끝나면 덱을 보다가 **E** → "오프라인", 또는 `npx deckmd slides.md`. 결과 파일을 덱 옆에 커밋해 두면 그것이 얼린 판이다.
 
-받을 것 없이 써 보려면 `index.html` 에 이 한 줄과 마크다운 파일 하나 (npm 에 올린 뒤부터):
+`init` 에는 선택이 둘 있고, 각각 기본값이 있다.
 
-```html
-<script src="https://cdn.jsdelivr.net/npm/deckmd@0.1.0/js/boot.js"></script>
-```
+| 옵션 | |
+|---|---|
+| `--cdn` (기본) / `--repo` | deckmd 를 어디서 가져오나: 버전을 고정한 CDN / 내 저장소의 `deckmd/` 에 복사 (오프라인 가능, 버전은 내 것) |
+| `--single` (기본) / `--multi` | 덱 하나: `index.html` + `slides.md` / 폴더마다 덱 하나인 발표 저장소: `index.html`, `deck.config.js`, `talks/first-talk/talk.md`, 첫 화면은 덱 목록 |
+
+`init` 은 덮어쓰지 않는다. 파일이 하나라도 있으면 (`--repo` 는 `deckmd/` 도) 아무것도 바꾸지 않고 멈춘다. 손으로 하거나 git submodule 로 하려면 [docs/usage.md](docs/usage.md) (영문).
 
 인터넷 없이 쓰는 법, 서버 없이 여는 법, 주소 옵션, 설정은 [docs/usage.md](docs/usage.md).
 

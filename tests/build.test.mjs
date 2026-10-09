@@ -171,6 +171,96 @@ test('plugin given as a URL: offline embeds it (and the CSS the plugin loads), s
   } finally { srv.kill(); }
 });
 
+// npx deckmd init: [--cdn | --repo] where deckmd comes from, [--single | --multi] how the decks are laid out
+const tree = dir => fs.readdirSync(dir, { recursive: true }).filter(f => fs.statSync(path.join(dir, f)).isFile()).map(f => f.split(path.sep).join('/')).sort();
+const PKG_VERSION = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
+const SINGLE = ['index.html', 'slides.md'];
+const MULTI = ['deck.config.js', 'index.html', 'talks/first-talk/talk.md'];
+
+test('init (default = cdn, single): index.html + slides.md, deckmd from the CDN at this version; again → stops, changes nothing', () => {
+  const dir = path.join(OUT, 'init-cdn');
+  fs.mkdirSync(dir, { recursive: true });
+  const r = build(['init'], dir);
+  assert.ok(r.ok, r.err);
+  assert.deepEqual(tree(dir), SINGLE);
+  const index = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+  assert.ok(index.includes(`https://cdn.jsdelivr.net/npm/deckmd@${PKG_VERSION}/js/boot.js`));
+  assert.doesNotMatch(index, /VERSION|"deckmd\/js\/boot\.js"/);
+  fs.writeFileSync(path.join(dir, 'slides.md'), '# mine\n');
+  const again = build(['init'], dir);
+  assert.ok(!again.ok);
+  for (const f of SINGLE) assert.ok(again.err.includes(f), `lists ${f}`);
+  assert.equal(fs.readFileSync(path.join(dir, 'slides.md'), 'utf8'), '# mine\n', 'not overwritten');
+});
+
+test('init --multi: index.html, deck.config.js and talks/first-talk/talk.md; one existing file stops it before anything is created', () => {
+  const dir = path.join(OUT, 'init-multi');
+  fs.mkdirSync(dir, { recursive: true });
+  assert.ok(build(['init', '--multi'], dir).ok);
+  assert.deepEqual(tree(dir), MULTI);
+  assert.match(fs.readFileSync(path.join(dir, 'deck.config.js'), 'utf8'), /home: 'list'/);
+
+  const part = path.join(OUT, 'init-partial/sub');                 // a folder argument works too
+  fs.mkdirSync(part, { recursive: true });
+  fs.writeFileSync(path.join(part, 'deck.config.js'), 'mine');
+  const r = build(['init', 'sub', '--multi'], path.dirname(part));
+  assert.ok(!r.ok);
+  assert.match(r.err, /deck\.config\.js/);
+  assert.deepEqual(tree(part), ['deck.config.js'], 'nothing else created');
+  assert.ok(build(['init', 'new/place'], path.dirname(part)).ok);
+  assert.deepEqual(tree(path.join(path.dirname(part), 'new/place')), SINGLE);
+  assert.ok(build(['init', 'sub'], path.dirname(part)).ok, '--single creates no deck.config.js, so an existing one is fine');
+});
+
+test('init --repo: also deckmd/ (the runtime, not tests or vendor); an existing deckmd/ stops it, but not --cdn', () => {
+  const dir = path.join(OUT, 'init-repo');
+  fs.mkdirSync(dir, { recursive: true });
+  const r = build(['init', '--repo', '--multi'], dir);
+  assert.ok(r.ok, r.err);
+  const files = tree(dir);
+  for (const f of [...MULTI, 'deckmd/js/boot.js', 'deckmd/js/deck.js', 'deckmd/css/base.css', 'deckmd/themes/ember/ember.css', 'deckmd/plugins/grid/grid.js',
+    'deckmd/templates/talk.md', 'deckmd/tools/build.mjs', 'deckmd/package.json', 'deckmd/LICENSE']) assert.ok(files.includes(f), f);
+  assert.ok(!files.some(f => /^deckmd\/(vendor|tests|examples|node_modules)\//.test(f)));
+  assert.match(fs.readFileSync(path.join(dir, 'index.html'), 'utf8'), /src="deckmd\/js\/boot\.js"/);
+  assert.ok(!build(['init', '--repo', '--multi'], dir).ok, 'again');
+
+  const only = path.join(OUT, 'init-only-deckmd');
+  fs.mkdirSync(path.join(only, 'deckmd'), { recursive: true });
+  const refused = build(['init', '--repo'], only);
+  assert.ok(!refused.ok);
+  assert.match(refused.err, /deckmd\//);
+  assert.deepEqual(tree(only), [], 'nothing created');
+  assert.ok(build(['init'], only).ok, '--cdn does not mind a deckmd/ folder');
+});
+
+test('init: option errors and help', () => {
+  for (const [args, msg] of [[['--cdn', '--repo'], /only one of --cdn, --repo/], [['--single', '--multi'], /only one of --single, --multi/],
+    [['--nope'], /unknown option: --nope/], [['a', 'b'], /only one folder/]]) {
+    const r = build(['init', ...args], OUT);
+    assert.ok(!r.ok, args.join(' '));
+    assert.match(r.err, msg);
+  }
+  const help = build(['init', '--help'], OUT);
+  assert.ok(help.ok);
+  assert.match(help.out, /--cdn.*--repo.*--single.*--multi/s);
+  assert.doesNotMatch(help.out, /import fs/);
+});
+
+test('init: every combination makes a project that packs (offline, no outside references)', () => {
+  for (const mode of ['cdn', 'repo']) for (const layout of ['single', 'multi']) {
+    const dir = path.join(OUT, `init-pack-${mode}-${layout}`);
+    fs.mkdirSync(dir, { recursive: true });
+    assert.ok(build(['init', `--${mode}`, `--${layout}`], dir).ok);
+    const r = build([layout === 'single' ? 'slides.md' : 'talks/first-talk/talk.md', '--offline'], dir);
+    assert.ok(r.ok, `${mode} ${layout}: ${r.err}`);
+    const packed = tree(dir).filter(f => /\.offline\.html$/.test(f));
+    assert.equal(packed.length, 1, `${mode} ${layout}: ${packed}`);
+    const html = fs.readFileSync(path.join(dir, packed[0]), 'utf8');
+    assert.deepEqual(external(html), [], `${mode} ${layout}`);
+    assert.match(html, /Talk title/);
+  }
+});
+
 test('DeckMD.version equals package.json (npm version bumps both)', () => {
   const { version } = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   const m = /^\s*version: '([^']*)',/m.exec(fs.readFileSync(path.join(ROOT, 'js/deck.js'), 'utf8'));

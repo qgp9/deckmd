@@ -69,22 +69,20 @@ Freeze a finished deck into one HTML file. Even if the template changes later, t
 ## Getting started
 
 ```bash
-# Add the template to your talks repository (once)
-git submodule add <deckmd repository> deckmd        # or copy it into deckmd/
-cp deckmd/templates/index.html deckmd/templates/deck.config.js .
-mkdir -p talks/first-talk && cp deckmd/templates/talk.md talks/first-talk/
-
-# Preview while writing: http://localhost:8000/ → pick a deck. Edit and reload
-deckmd/tools/serve.sh           # Windows: deckmd\tools\serve.cmd (not yet tested on Windows)
+npx deckmd init                  # index.html + slides.md (deckmd itself comes from the CDN)
+python3 -m http.server           # any static web server; open http://localhost:8000/ and edit slides.md
 ```
 
-When you're done, press **E** while viewing the deck → "Offline". Commit the resulting file next to the deck; that is the frozen version.
+When you're done, press **E** while viewing the deck → "Offline", or run `npx deckmd slides.md`. Commit the resulting file next to the deck; that is the frozen version.
 
-To try it without downloading anything, put this one line in `index.html` next to a Markdown file (once it's published on npm):
+`init` has two choices, each with a default:
 
-```html
-<script src="https://cdn.jsdelivr.net/npm/deckmd@0.1.0/js/boot.js"></script>
-```
+| Option | |
+|---|---|
+| `--cdn` (default) / `--repo` | where deckmd comes from: the CDN, pinned to a version / a copy in `deckmd/` in your repository (works offline, you own the version) |
+| `--single` (default) / `--multi` | one deck: `index.html` + `slides.md` / a talks repository, one folder per deck: `index.html`, `deck.config.js`, `talks/first-talk/talk.md` and a deck list as the home page |
+
+`init` never overwrites: if any of the files (with `--repo`, also `deckmd/`) already exists, it stops and changes nothing. To do it by hand, or with a git submodule: [docs/usage.md](docs/usage.md).
 
 Working offline, opening without a server, URL options and config: [docs/usage.md](docs/usage.md).
 

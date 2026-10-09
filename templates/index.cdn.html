@@ -1,0 +1,22 @@
+<!doctype html>
+<!--
+  The launcher page for your talks repository, with deckmd loaded from the CDN (npx deckmd init). Put this file at the top of the repository as index.html.
+    index.html                  opens the deck (src in deck.config.js, default slides.md), or the deck list if home: 'list'
+    index.html?src=any/deck.md  one deck
+  Serve this folder with any static web server (python3 -m http.server) and open it.
+  The version in the URL is pinned: change it to upgrade (deckmd@latest follows every release).
+  Options on the script tag:
+    data-skip="highlight"   leave out (reveal, highlight, notes, font, markdown, yaml, pack, config)
+    data-config="x.js"      config file (default: deck.config.js next to this file, none = no config)
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Talks</title>
+</head>
+<body>
+  <div class="reveal"><div class="slides"></div></div>
+  <script src="https://cdn.jsdelivr.net/npm/deckmd@VERSION/js/boot.js"></script>
+</body>
+</html>

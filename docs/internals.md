@@ -17,10 +17,11 @@ js/
 css/base.css            shared rules (.cols .card .chapter … and the variable list). Always loaded first, regardless of theme
 themes/<name>/<name>.css  themes: ember (default), catppuccin, solarized
 plugins/grid/           built-in plugin (```grid cell diagrams)
-templates/              files to copy into your talks repository: index.html, index.full.html, deck.config.js, deck.config.full.js, talk.md
+templates/              files to copy into your talks repository: index.html, index.cdn.html (deckmd from the CDN; init fills in the version), index.full.html, deck.config.js, deck.config.full.js, talk.md
 tools/
   serve.sh, .cmd, .ps1  web server for live preview while writing
   build.mjs             command-line pack and unpack (runs pack.js unchanged in jsdom)
+  init.mjs              npx deckmd init: starts a talks repository from templates/ (build.mjs hands over to it)
   localize.mjs          downloads CDN libraries, fonts and licenses into vendor/
   release.mjs           builds the offline zip (distribution on hold)
 scripts/version.mjs     repo maintenance, not published: npm version copies the new version into DeckMD.version

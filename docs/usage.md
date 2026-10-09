@@ -10,7 +10,24 @@ How to create, view, and pack a deck. For syntax see [writing.md](writing.md), f
 | **CDN** | `<script src="https://cdn.jsdelivr.net/npm/deckmd@VERSION/js/boot.js"></script>` | Nothing to download. One Markdown file + this file |
 | **Offline** | Repository + `<script src="deckmd/js/boot.js" data-local></script>` | Planes, air-gapped networks |
 
-### Repository
+### `npx deckmd init`
+
+The quickest start. It creates the files for you; each of the two choices has a default.
+
+```bash
+npx deckmd init [dir] [--cdn | --repo] [--single | --multi]
+```
+
+| Option | Means |
+|---|---|
+| `--cdn` (default) | `index.html` loads deckmd from the CDN, pinned to the version you ran `init` with (change the number to upgrade) |
+| `--repo` | also copies deckmd into `deckmd/` (runtime, templates, tools). You own the copy; works offline after `node deckmd/tools/localize.mjs`. To follow deckmd's updates with git, use a submodule instead (below) |
+| `--single` (default) | one deck: `index.html` + `slides.md`. Opening `index.html` shows it, no config needed |
+| `--multi` | a talks repository: `index.html`, `deck.config.js`, `talks/first-talk/talk.md`. Opening `index.html` lists the decks |
+
+`init` never overwrites. If any file it would create exists (with `--repo`, also `deckmd/`), it stops and changes nothing. Add more decks to a `--multi` repository by copying a folder under `talks/`.
+
+### Repository by hand (git submodule)
 
 ```bash
 git submodule add <deckmd repo> deckmd        # or copy it into deckmd/
@@ -33,7 +50,7 @@ For why it's laid out this way, see [workflow.md](workflow.md).
 
 ### CDN
 
-Just change the one `boot.js` tag in `index.html` to the CDN URL. `boot.js` finds everything else (themes, plugins, libraries) relative to its own URL. With the version in the URL, that deck stays the same even when deckmd changes. (Available once published to npm.)
+`npx deckmd init` writes this for you. By hand: change the one `boot.js` tag in `index.html` to the CDN URL. `boot.js` finds everything else (themes, plugins, libraries) relative to its own URL. With the version in the URL, that deck stays the same even when deckmd changes.
 
 ### Offline
 
