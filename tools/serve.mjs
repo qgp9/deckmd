@@ -7,7 +7,9 @@
 //   only home, src and decks are replaced by your files, so the theme, plugins and CSS of the project apply.
 //   --port N   default 8000, or the next free port; 0 = any      --open   open the browser
 //   --host H   default localhost; 0.0.0.0 opens it to your network (a phone, a friend's laptop)
-//   Files are read from disk on every request: edit, then reload. Dot files and folders (.git, .env) are never served.
+//   Files are read from disk on every request: edit, then reload. Dot files and folders (.git, .env) are never served,
+//   a request whose Host is some domain name (a DNS rebinding attack) is refused, and a symbolic link is followed only inside the served folder
+//   (or into deckmd's own js/ css/ themes/ plugins/). --host 0.0.0.0 opens the folder to your network: you are warned.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -80,9 +82,24 @@ export async function serve(args) {
 </html>
 `;
 
+  // DNS rebinding: a page on evil.example can make the browser send requests here with Host: evil.example once it points the name at 127.0.0.1,
+  // and read the answers. So only localhost, an IP address, or the name you gave --host is a valid Host
+  const hostAllowed = (h) => {
+    const m = /^(\[[0-9a-f:.]+\]|[^:[\]\s]+)(?::\d{1,5})?$/i.exec(h || '');
+    const name = m?.[1].toLowerCase();
+    return !!name && (name === 'localhost' || name === host.toLowerCase() || name.startsWith('[') || /^\d{1,3}(\.\d{1,3}){3}$/.test(name));
+  };
+  // Symbolic links are followed only while the real path stays inside the served folder, or in the public folders of deckmd's own package
+  // (js, css, themes, plugins: so a deckmd/ link to the package works, but not package.json, .git, tools …)
+  const realRoot = fs.realpathSync(root);
+  const packagePublic = [...PACKAGE_DIRS].map(d => path.join(fs.realpathSync(ROOT), d));
+  const insideOf = (real, base) => real === base || real.startsWith(base + path.sep);
+  const resolveInside = (file, bases, done) => fs.realpath(file, (err, real) => (err ? done(404) : bases.some(b => insideOf(real, b)) ? done(null, real) : done(403)));
+
   const send = (req, res, code, type, body) => { res.writeHead(code, { 'content-type': type, 'cache-control': 'no-cache' }); res.end(req.method === 'HEAD' ? undefined : body); };
   const text = (req, res, code, msg) => send(req, res, code, 'text/plain; charset=utf-8', `${msg}\n`);
   const sendFile = (req, res, file) => fs.readFile(file, (err, buf) => (err ? text(req, res, 404, 'Not found') : send(req, res, 200, TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream', buf)));
+  const serveFile = (req, res, file, bases) => resolveInside(file, bases, (code, real) => (code ? text(req, res, code, code === 403 ? 'Forbidden: a symbolic link that leaves the served folder' : 'Not found') : sendFile(req, res, real)));
   const listing = (dir, urlPath) => {
     const rows = fs.readdirSync(dir, { withFileTypes: true }).filter(d => !d.name.startsWith('.')).sort((a, b) => a.name.localeCompare(b.name))
       .map(d => { const name = d.name + (d.isDirectory() ? '/' : ''); return `<li><a href="${encodeURIComponent(d.name)}${d.isDirectory() ? '/' : ''}">${esc(name)}</a></li>`; });
@@ -90,6 +107,7 @@ export async function serve(args) {
   };
 
   const server = http.createServer((req, res) => {
+    if (!hostAllowed(req.headers.host)) return text(req, res, 403, 'Forbidden: use http://localhost or the IP address (this Host is neither; a DNS rebinding attack looks like this)');
     if (req.method !== 'GET' && req.method !== 'HEAD') return text(req, res, 405, 'Method not allowed');
     let pathname;
     try { pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); } catch { return text(req, res, 400, 'Bad request'); }
@@ -98,18 +116,22 @@ export async function serve(args) {
 
     if (parts[0] === '_deckmd') {                                           // deckmd itself, from the installed package
       if (parts[1] === 'config.js' && parts.length === 2 && files.length) return send(req, res, 200, TYPES['.js'], makeConfig());
-      if (PACKAGE_DIRS.has(parts[1])) return sendFile(req, res, path.join(ROOT, ...parts.slice(1)));
+      if (PACKAGE_DIRS.has(parts[1])) return serveFile(req, res, path.join(ROOT, ...parts.slice(1)), packagePublic);
       return text(req, res, 404, 'Not found');
     }
     if (configUrl && pathname === configUrl) return send(req, res, 200, TYPES['.js'], makeConfig());   // the project's page asks for its own config
     if (files.length && !ownIndex && (pathname === '/' || pathname === '/index.html')) return send(req, res, 200, TYPES['.html'], launcher);
     const target = path.join(root, ...parts);
-    fs.stat(target, (err, st) => {
-      if (err) return text(req, res, 404, 'Not found');
-      if (!st.isDirectory()) return sendFile(req, res, target);
-      if (!pathname.endsWith('/')) { res.writeHead(301, { location: `${pathname}/` }); return res.end(); }
-      if (fs.existsSync(path.join(target, 'index.html'))) return sendFile(req, res, path.join(target, 'index.html'));
-      send(req, res, 200, TYPES['.html'], listing(target, pathname));
+    resolveInside(target, [realRoot, ...packagePublic], (code, real) => {
+      if (code) return text(req, res, code, code === 403 ? 'Forbidden: a symbolic link that leaves the served folder' : 'Not found');
+      fs.stat(real, (err, st) => {
+        if (err) return text(req, res, 404, 'Not found');
+        if (!st.isDirectory()) return sendFile(req, res, real);
+        if (!pathname.endsWith('/')) { res.writeHead(301, { location: `${pathname}/` }); return res.end(); }
+        const index = path.join(target, 'index.html');
+        if (fs.existsSync(index)) return serveFile(req, res, index, [realRoot, ...packagePublic]);
+        send(req, res, 200, TYPES['.html'], listing(real, pathname));
+      });
     });
   });
 
@@ -125,6 +147,7 @@ export async function serve(args) {
   const what = !files.length ? 'the current folder' : files.length === 1 ? given[0] : `${files.length} decks`;
   console.log(`deckmd serve: ${what}${files.length && root !== process.cwd() ? `  (from ${root})` : ''}${note ? `\n  ${note}` : ''}
   ${url}${lan ? `\n  ${url.replace('localhost', lan.address)}   (on your network)` : ''}
+${['localhost', '127.0.0.1', '::1'].includes(host.toLowerCase()) ? '' : `\n  WARNING: --host ${host} opens ${files.length ? 'the folder of your files' : 'this whole folder'} (dot files excepted) to your network. Anyone who can reach this port can read it.`}
 Reload the page to see edits. Ctrl+C to stop.`);
   if (open) spawn(...(process.platform === 'darwin' ? ['open', [url]] : process.platform === 'win32' ? ['cmd', ['/c', 'start', '', url]] : ['xdg-open', [url]]), { stdio: 'ignore', detached: true }).on('error', () => {}).unref();
 
