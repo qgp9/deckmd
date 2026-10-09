@@ -19,7 +19,8 @@ themes/<name>/<name>.css  themes: ember (default), catppuccin, solarized
 plugins/grid/           built-in plugin (```grid cell diagrams)
 templates/              files to copy into your talks repository: index.html, index.cdn.html (deckmd from the CDN; init fills in the version), index.full.html, deck.config.js, deck.config.full.js, talk.md
 tools/
-  serve.sh, .cmd, .ps1  web server for live preview while writing
+  serve.mjs             npx deckmd serve: one deck, a deck list or the current folder (launcher page and config made on the fly; deckmd under /_deckmd/)
+  serve.sh, .cmd, .ps1  the same idea for a repository checkout without node (python3 → node → php)
   build.mjs             command-line pack and unpack (runs pack.js unchanged in jsdom)
   init.mjs              npx deckmd init: starts a talks repository from templates/ (build.mjs hands over to it)
   add.mjs               npx deckmd add: adds slides/<name>/deck.md from the starter

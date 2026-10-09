@@ -70,8 +70,10 @@ reveal.js 위에 마크다운 문법 몇 가지를 더했다.
 
 ```bash
 npx deckmd init                  # index.html + slides.md (deckmd 는 CDN 에서)
-python3 -m http.server           # 아무 정적 웹 서버나. http://localhost:8000/ 을 열고 slides.md 를 고친다
+npx deckmd serve                 # 작은 웹 서버. http://localhost:8000/ 을 열고 slides.md 를 고친다
 ```
+
+프로젝트 없이 마크다운 파일만 보려면 `npx deckmd serve my-deck.md` (그 덱 하나), `npx deckmd serve a.md b.md` (덱 목록). `--port`, `--open`, `--host 0.0.0.0` (같은 네트워크의 폰에서 열기)도 있다.
 
 끝나면 덱을 보다가 **E** → "오프라인", 또는 `npx deckmd slides.md`. 결과 파일을 덱 옆에 커밋해 두면 그것이 얼린 판이다.
 

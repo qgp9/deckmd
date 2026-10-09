@@ -5,6 +5,7 @@ import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import http from 'node:http';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -306,6 +307,101 @@ test('add: a title with quotes and colons is still valid front matter, and the n
   const packed = fs.readdirSync(path.join(dir, 'slides/odd/dist')).find(f => /\.offline\.html$/.test(f));
   const html = fs.readFileSync(path.join(dir, 'slides/odd/dist', packed), 'utf8');
   assert.match(html, /<title>He said &quot;hi&quot;: it's #1<\/title>|<title>He said "hi": it's #1<\/title>/);
+});
+
+// npx deckmd serve: one deck, a deck list, or the current folder
+async function withServe(args, cwd, fn) {
+  const child = spawn(process.execPath, [BUILD, 'serve', ...args, '--port', '0'], { cwd });
+  let err = '';
+  child.stderr.on('data', d => { err += d; });
+  try {
+    const base = await new Promise((ok, no) => {
+      child.stdout.on('data', (d) => { const m = /http:\/\/localhost:\d+\//.exec(String(d)); if (m) ok(m[0]); });
+      child.once('exit', code => no(new Error(`serve exited ${code}: ${err}`)));
+    });
+    return await fn(base);
+  } finally { child.kill(); }
+}
+const get = async (url) => { const r = await fetch(url); return { status: r.status, type: r.headers.get('content-type'), text: await r.text() }; };
+const raw = (base, p) => new Promise((ok, no) => { const u = new URL(base); http.get({ host: u.hostname, port: u.port, path: p }, r => { r.resume(); ok(r.statusCode); }).on('error', no); });   // no URL cleaning: '..' stays
+
+test('serve my-deck.md: a launcher page and a config made on the fly, deckmd from the package, files from disk', async () => {
+  const dir = path.join(OUT, 'serve-one');
+  fs.mkdirSync(path.join(dir, 'img'), { recursive: true });
+  fs.copyFileSync(path.join(ROOT, 'tests/fixtures/assets/img/dot.svg'), path.join(dir, 'img/dot.svg'));
+  fs.writeFileSync(path.join(dir, 'my deck.md'), '---\ntitle: Served\n---\n\n# One\n\n![](img/dot.svg)\n');
+  fs.writeFileSync(path.join(dir, '.secret'), 'no');
+  await withServe(['my deck.md'], dir, async (base) => {
+    const index = await get(base);
+    assert.equal(index.status, 200);
+    assert.match(index.type, /text\/html/);
+    assert.match(index.text, /src="\/_deckmd\/js\/boot\.js" data-config="\/_deckmd\/config\.js"/);
+    const cfg = (await get(`${base}_deckmd/config.js`)).text;
+    assert.match(cfg, /"home": "deck"/);
+    assert.match(cfg, /"src": "my deck\.md"/);
+    assert.match((await get(`${base}my%20deck.md`)).text, /title: Served/);
+    assert.match((await get(`${base}img/dot.svg`)).type, /image\/svg\+xml/);
+    for (const p of ['_deckmd/js/deck.js', '_deckmd/js/boot.js', '_deckmd/css/base.css', '_deckmd/themes/ember/ember.css', '_deckmd/plugins/grid/grid.js']) assert.equal((await get(base + p)).status, 200, p);
+    assert.equal((await get(`${base}my%20deck.md`)).text, fs.readFileSync(path.join(dir, 'my deck.md'), 'utf8'));
+    fs.writeFileSync(path.join(dir, 'my deck.md'), '# Edited\n');
+    assert.equal((await get(`${base}my%20deck.md`)).text, '# Edited\n', 'read from disk on every request');
+    for (const p of ['_deckmd/package.json', '_deckmd/tools/build.mjs', '_deckmd/tests/build.test.mjs', '.secret', 'nope.txt']) assert.equal((await get(base + p)).status, 404, p);
+    for (const p of ['/%2e%2e/x', '/_deckmd/js/../package.json', '/img/%2e%2e/%2e%2e/x', '/..%5c..%5cx']) assert.ok([400, 404].includes(await raw(base, p)), p);
+  });
+});
+
+test('serve a.md b.md: a deck list (decks in different folders keep their paths)', async () => {
+  const dir = path.join(OUT, 'serve-list');
+  fs.mkdirSync(path.join(dir, 'a'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'b'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'a/one.md'), '# One\n');
+  fs.writeFileSync(path.join(dir, 'b/two.md'), '# Two\n');
+  await withServe(['a/one.md', 'b/two.md'], dir, async (base) => {
+    const cfg = (await get(`${base}_deckmd/config.js`)).text;
+    assert.match(cfg, /"home": "list"/);
+    assert.match(cfg, /"src": "a\/one\.md"/);
+    assert.match(cfg, /"src": "b\/two\.md"/);
+    assert.equal((await get(`${base}b/two.md`)).status, 200);
+  });
+});
+
+test('serve (no files): the current folder as it is: its own index.html, folder listings deck.js can scan, no dot files', async () => {
+  const dir = path.join(OUT, 'serve-project');
+  fs.mkdirSync(dir, { recursive: true });
+  assert.ok(build(['init', '--multi'], dir).ok);
+  fs.mkdirSync(path.join(dir, '.git'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.git/config'), 'secret');
+  await withServe([], dir, async (base) => {
+    assert.equal((await get(base)).text, fs.readFileSync(path.join(dir, 'index.html'), 'utf8'), "the project's own index.html");
+    assert.equal((await get(`${base}_deckmd/config.js`)).status, 404, 'no generated config without files');
+    const top = (await get(`${base}slides/`)).text;
+    assert.match(top, /href="first-deck\/"/);
+    assert.match((await get(`${base}slides/first-deck/`)).text, /href="deck\.md"/);
+    assert.equal((await get(`${base}slides/first-deck/deck.md`)).status, 200);
+    assert.doesNotMatch((await get(base + 'slides')).text, /secret/);
+    assert.equal((await get(`${base}.git/config`)).status, 404);
+    assert.doesNotMatch((await get(`${base}slides/`)).text, /\.git/);
+  });
+  const bare = path.join(OUT, 'serve-bare');                       // no index.html → a listing
+  fs.mkdirSync(bare, { recursive: true });
+  fs.writeFileSync(path.join(bare, 'x.md'), '# x\n');
+  await withServe([], bare, async (base) => assert.match((await get(base)).text, /href="x\.md"/));
+});
+
+test('serve: errors and help', () => {
+  const dir = path.join(OUT, 'serve-errors');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'x.txt'), 'x');
+  for (const [args, msg] of [[['missing.md'], /not found: missing\.md/], [['x.txt'], /serve takes Markdown files/], [['--port', 'abc'], /--port needs a number/],
+    [['--port'], /--port needs a number/], [['--nope'], /unknown option: --nope/], [['--host'], /--host needs/]]) {
+    const r = build(['serve', ...args], dir);
+    assert.ok(!r.ok, args.join(' '));
+    assert.match(r.err, msg);
+  }
+  const help = build(['serve', '--help'], dir);
+  assert.ok(help.ok);
+  assert.match(help.out, /serve my-deck\.md/);
+  assert.doesNotMatch(help.out, /import fs/);
 });
 
 test('DeckMD.version equals package.json (npm version bumps both)', () => {

@@ -76,10 +76,19 @@ Then add `data-local` to the tag in the launcher page.
 ## Viewing while you write
 
 ```bash
-deckmd/tools/serve.sh       # Windows: deckmd\tools\serve.cmd (double-click works too; not yet tested on Windows). Or python3 -m http.server
+npx deckmd serve                          # serve the current folder (a project made by init): its index.html, or the deck list
+npx deckmd serve my-deck.md               # one deck, nothing else needed: no index.html, no config
+npx deckmd serve a.md b.md examples/*.md  # a deck list of those files
 ```
 
-`http://localhost:8000/` → deck list → deck. Edit the Markdown and reload, and it redraws the same slide you were on. `serve.sh` uses whichever of python3 → node → php is available.
+`http://localhost:8000/` → deck list → deck. Edit the Markdown and reload, and it redraws the same slide you were on.
+
+- With files, the server makes the launcher page and the config itself and serves deckmd from the package (under `/_deckmd/`). Your files, and what they refer to (images, CSS, plugins next to them), are read from disk on every request, so images and paths resolve relative to the Markdown as usual. Decks in different folders keep their paths relative to their common folder.
+- Without files, it serves the current folder as it is, with folder listings (so a `decks: 'auto'` deck list can scan `slides/*`). This replaces `python3 -m http.server`; any static server still works.
+- `--port N` (default 8000, or the next free port; `0` = any), `--open` (open the browser), `--host 0.0.0.0` (open it to your network, for a phone or a friend's laptop). The default is `localhost` only.
+- Dot files and folders (`.git`, `.env`) are never served, and of deckmd itself only `js/ css/ themes/ plugins/` are.
+- A repository checkout also has `tools/serve.sh` (python3 → node → php, whichever exists; `serve.cmd` and `serve.ps1` for Windows, not tested there).
+- Press **E** on a served deck to pack it: that works the same as on any other page.
 
 ### Without a server
 

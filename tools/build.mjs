@@ -3,6 +3,7 @@
 //
 //   npx deckmd init [dir] [--cdn | --repo]      start a talks repository: index.html, deck.config.js, slides/first-deck/deck.md  (npx deckmd init --help)
 //   npx deckmd add <name> [title]               add a deck to a talks repository: slides/<name>/deck.md from the starter  (npx deckmd add --help)
+//   npx deckmd serve [file.md …] [--port N] [--open]   a web server to write with: one deck, a deck list, or the current folder  (npx deckmd serve --help)
 //   node tools/build.mjs talk.md [--offline]    → <deck folder>/dist/<name>.offline.html   one file with everything inside (opens without internet, default)
 //   node tools/build.mjs talk.md --share        → <deck folder>/dist/<name>.share.html     libraries and fonts from the CDN (small, needs internet)
 //   node tools/build.mjs index.html             a page with slides written directly works too (that page is the launcher page)
@@ -28,6 +29,7 @@ const MODES = ['offline', 'share'];
 // ── Options ──────────────────────────────────────────────────────
 const args = process.argv.slice(2);
 if (args[0] === 'init') { (await import('./init.mjs')).init(args.slice(1)); process.exit(process.exitCode ?? 0); }
+if (args[0] === 'serve') { await (await import('./serve.mjs')).serve(args.slice(1)); process.exit(0); }
 if (args[0] === 'add') { (await import('./add.mjs')).add(args.slice(1)); process.exit(process.exitCode ?? 0); }
 if (args.includes('--help') || args.includes('-h') || !args.some(a => !a.startsWith('-'))) {
   const lines = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1);

@@ -59,12 +59,11 @@ export function init(args) {
   }
 
   const at = path.relative(process.cwd(), target);
-  const serve = mode === 'repo' ? 'deckmd/tools/serve.sh' : 'python3 -m http.server';
-  console.log(`deckmd init (${mode}, ${layout})${at ? ` in ${at}/` : ''}
+    console.log(`deckmd init (${mode}, ${layout})${at ? ` in ${at}/` : ''}
   created ${files.map(([rel]) => rel).join('\n  created ')}${mode === 'repo' ? `\n  created deckmd/   (a copy of deckmd ${version})` : `\n  deckmd ${version} is loaded from the CDN`}
 
 Next:
-  ${at ? `cd ${at} && ` : ''}${serve}       # any static web server works
+  ${at ? `cd ${at} && ` : ''}npx deckmd serve
   open http://localhost:8000/ and edit ${deck}
   when you're done: press E → Offline, or  npx deckmd ${deck}`);
 }
