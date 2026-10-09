@@ -316,8 +316,9 @@ async function withServe(args, cwd, fn) {
   child.stderr.on('data', d => { err += d; });
   try {
     const base = await new Promise((ok, no) => {
-      child.stdout.on('data', (d) => { printed += d; const m = /http:\/\/localhost:\d+\//.exec(printed); if (m) ok(m[0]); });
-      child.once('exit', code => no(new Error(`serve exited ${code}: ${err}`)));
+      const giveUp = setTimeout(() => no(new Error(`serve printed no address in 10 s. stdout: ${printed} stderr: ${err}`)), 10000);   // never wait forever
+      child.stdout.on('data', (d) => { printed += d; const m = /http:\/\/(?:localhost|127\.0\.0\.1|\[::1\]):\d+\//.exec(printed); if (m) { clearTimeout(giveUp); ok(m[0]); } });
+      child.once('exit', (code) => { clearTimeout(giveUp); no(new Error(`serve exited ${code}: ${err}`)); });
     });
     return await fn(base, printed);
   } finally { child.kill(); }
@@ -429,6 +430,72 @@ test('serve a.md inside a project: its index.html and deck.config.js are used, o
     assert.match(printed, /not using index\.html or deck\.config\.js here: the files are outside this folder/);
     assert.doesNotMatch((await get(`${base}_deckmd/config.js`)).text, /Custom|catppuccin|solarized/);
   });
+});
+
+const withHost = (base, p, hostHeader) => new Promise((ok, no) => {                    // a request with a chosen Host header
+  const u = new URL(base);
+  http.get({ host: u.hostname, port: u.port, path: p, headers: { host: hostHeader } }, r => { r.resume(); ok(r.statusCode); }).on('error', no);
+});
+
+test('serve: a request with someone else\'s Host is refused (DNS rebinding); localhost, IP addresses and --host name are fine', async () => {
+  const dir = path.join(OUT, 'serve-host');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'a.md'), '# secret\n');
+  await withServe(['a.md'], dir, async (base) => {
+    const port = new URL(base).port;
+    for (const h of ['evil.example', `evil.example:${port}`, `localhost.evil.example:${port}`, 'a.md', `127.0.0.1.evil.example:${port}`, 'evil.example.', `x@${port}`]) {
+      for (const p of ['/a.md', '/', '/_deckmd/js/deck.js']) assert.equal(await withHost(base, p, h), 403, `${h} ${p}`);
+    }
+    for (const h of [`localhost:${port}`, 'localhost', `127.0.0.1:${port}`, `[::1]:${port}`, `192.168.1.20:${port}`, `LOCALHOST:${port}`]) assert.equal(await withHost(base, '/a.md', h), 200, h);
+  });
+  await withServe(['a.md', '--host', '127.0.0.1'], dir, async (base) => {
+    assert.equal(await withHost(base, '/a.md', 'evil.example'), 403);
+    assert.equal(await withHost(base, '/a.md', '127.0.0.1'), 200);
+  });
+});
+
+test('serve: a symbolic link is followed only while it stays inside the served folder (or deckmd itself)', async (t) => {
+  if (process.platform === 'win32') return t.skip('symlinks need privileges on Windows');
+  const dir = path.join(OUT, 'serve-links/site'), outside = path.join(OUT, 'serve-links/outside');
+  fs.mkdirSync(path.join(dir, 'inner'), { recursive: true });
+  fs.mkdirSync(outside, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'ok.md'), '# ok\n');
+  fs.writeFileSync(path.join(dir, 'inner/a.txt'), 'inner');
+  fs.writeFileSync(path.join(outside, 'secret.txt'), 'top secret');
+  fs.symlinkSync('ok.md', path.join(dir, 'link-file-in'));                       // stays inside
+  fs.symlinkSync('inner', path.join(dir, 'link-dir-in'));
+  fs.symlinkSync(outside, path.join(dir, 'link-dir-out'));                       // leaves the folder
+  fs.symlinkSync(path.join(outside, 'secret.txt'), path.join(dir, 'link-file-out'));
+  fs.mkdirSync(path.join(dir, 'deckmd'));                                        // a deckmd/ that links to the package: only its public folders are served through it
+  for (const d of ['js', 'themes']) fs.symlinkSync(path.join(ROOT, d), path.join(dir, 'deckmd', d));   // (not ROOT itself: tests/out is inside ROOT, that would be a loop)
+  fs.symlinkSync(path.join(ROOT, 'package.json'), path.join(dir, 'deckmd/package.json'));
+  fs.symlinkSync(path.join(ROOT, 'package.json'), path.join(dir, 'link-pkg'));
+  fs.symlinkSync(path.join(ROOT, 'tools'), path.join(dir, 'deckmd/tools'));
+  try { await withServe([], dir, async (base) => {
+    assert.equal((await get(`${base}link-file-in`)).status, 200);
+    assert.equal((await get(`${base}link-dir-in/a.txt`)).text, 'inner');
+    assert.equal((await get(`${base}deckmd/js/deck.js`)).status, 200);
+    assert.equal((await get(`${base}deckmd/themes/ember/ember.css`)).status, 200);
+    for (const p of ['link-dir-out/secret.txt', 'link-file-out', 'link-dir-out/', 'link-pkg', 'deckmd/package.json', 'deckmd/tools/build.mjs']) {
+      const r = await get(base + p);
+      assert.equal(r.status, 403, p);
+      assert.doesNotMatch(r.text, /top secret/, p);
+    }
+  }); } finally {
+    for (const l of fs.readdirSync(dir)) if (fs.lstatSync(path.join(dir, l)).isSymbolicLink()) fs.unlinkSync(path.join(dir, l));   // leave no links behind
+    for (const l of fs.readdirSync(path.join(dir, 'deckmd'))) fs.unlinkSync(path.join(dir, 'deckmd', l));
+  }
+});
+
+test('serve --host 0.0.0.0 warns that the folder is open to the network (and the default does not)', async () => {
+  const dir = path.join(OUT, 'serve-warn');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'x.md'), '# x\n');
+  await withServe(['x.md', '--host', '0.0.0.0'], dir, async (base, printed) => {
+    assert.match(printed, /WARNING: --host 0\.0\.0\.0 opens the folder of your files .* to your network/);
+    assert.equal((await get(`${base}x.md`)).status, 200);
+  });
+  await withServe(['x.md'], dir, async (base, printed) => assert.doesNotMatch(printed, /WARNING/));
 });
 
 test('serve: errors and help', () => {
