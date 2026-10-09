@@ -46,6 +46,7 @@
     "test": "node --test tests/build.test.mjs",
     "localize": "node tools/localize.mjs",
     "release": "node tools/release.mjs",
+    "prepublishOnly": "node scripts/check-release.mjs",
     "version": "node scripts/version.mjs && git add js/deck.js"
   },
   "dependencies": {
