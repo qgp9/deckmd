@@ -1,0 +1,19 @@
+<!doctype html>
+<!--
+  Launcher page used when opening the deckmd repository directly → list of example decks (deck.config.js).
+  The launcher page for your own repository is templates/index.html (one deckmd/js/boot.js line).
+    index.html?src=examples/grid/talk.md   open one deck
+    …&core   only tier: core slides      …&draft   review notes      ?deck-list   deck list
+  The Markdown is read with fetch, so open it through a web server (python3 -m http.server). Without a server, you pick the file once.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>deckmd</title>
+</head>
+<body>
+  <div class="reveal"><div class="slides"></div></div>
+  <script src="js/boot.js"></script>
+</body>
+</html>

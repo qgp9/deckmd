@@ -1,0 +1,36 @@
+/* grid plugin: ```grid cell diagrams. Colors from theme variables (to fit any theme) */
+
+.reveal .grid {
+  --grid-h: 76px;
+  display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: 7px; margin: 4px 0 18px;
+}
+.reveal .grid.with-head { grid-template-columns: auto repeat(var(--cols), 1fr); }
+.reveal .grid .gh {
+  display: flex; align-items: center; justify-content: center; padding: 0 6px;
+  font: 600 16px var(--r-code-font); color: var(--muted);
+}
+.reveal .grid .cell {
+  --c: var(--muted);
+  position: relative; height: var(--grid-h); min-width: 0; border-radius: 9px;
+  border: 2px solid var(--line); background: var(--bg-2);
+  display: flex; align-items: center; justify-content: center;
+}
+.reveal .grid .cell i { position: absolute; top: 2px; left: 6px; font: 14px var(--r-code-font); color: var(--muted); font-style: normal; }
+.reveal .grid .cell b { font: 700 clamp(16px, calc(var(--grid-h) * 0.3), 72px) var(--r-code-font); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 4px; }
+.reveal .grid .cell.empty:not(.tint) { border-style: dashed; }
+
+/* Colors: light background, border and text in that color */
+.reveal .grid .cell.tint { background: color-mix(in srgb, var(--c) 18%, var(--bg)); border-color: var(--c); }
+.reveal .grid .cell.tint b { color: var(--c); }
+.reveal .grid .cell.is-accent { --c: var(--accent); }
+.reveal .grid .cell.is-cool { --c: var(--cool); }
+.reveal .grid .cell.is-good { --c: var(--good); }
+.reveal .grid .cell.is-bad { --c: var(--bad); }
+.reveal .grid .cell.is-warn { --c: var(--warn, var(--accent)); }
+.reveal .grid .cell.is-muted { --c: var(--muted); }
+
+/* Highlight */
+.reveal .grid .cell.hl {
+  box-shadow: 0 0 0 4px var(--accent), 0 0 18px color-mix(in srgb, var(--accent) 55%, transparent);
+  z-index: 1;
+}

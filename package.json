@@ -1,0 +1,54 @@
+{
+  "name": "deckmd",
+  "version": "0.1.0",
+  "description": "reveal.js slide decks from a single Markdown file. View them in the browser with no build step, then pack the deck into one HTML file.",
+  "keywords": [
+    "markdown",
+    "slides",
+    "presentation",
+    "reveal.js",
+    "deck"
+  ],
+  "license": "MIT",
+  "author": "Beomsu Chang (https://github.com/qgp9)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qgp9/deckmd.git"
+  },
+  "homepage": "https://github.com/qgp9/deckmd#readme",
+  "bugs": "https://github.com/qgp9/deckmd/issues",
+  "jsdelivr": "js/boot.js",
+  "bin": {
+    "deckmd": "tools/build.mjs"
+  },
+  "files": [
+    "js/",
+    "css/",
+    "themes/",
+    "plugins/",
+    "templates/",
+    "tools/",
+    "docs/README.md",
+    "docs/usage.md",
+    "docs/writing.md",
+    "docs/styling.md",
+    "docs/fonts.md",
+    "docs/packing.md",
+    "docs/plugins.md",
+    "docs/interactive.md",
+    "docs/workflow.md",
+    "docs/internals.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test tests/build.test.mjs",
+    "localize": "node tools/localize.mjs",
+    "release": "node tools/release.mjs",
+    "version": "node tools/version.mjs && git add js/deck.js"
+  },
+  "dependencies": {
+    "jsdom": "^30.1.2"
+  }
+}

@@ -1,0 +1,46 @@
+<!doctype html>
+<!--
+  A deck with slides written directly in HTML (no Markdown). Write <section>s inside .slides of the launcher page (templates/index.html).
+  Settings go in <script type="application/yaml" id="deck-meta"> instead of Markdown front matter. Pack: E key, or node tools/build.mjs examples/page/index.html (--share for share)
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A deck written in HTML</title>
+</head>
+<body>
+  <div class="reveal"><div class="slides">
+
+    <section class="chapter" data-tier="core">
+      <h6>examples/page/index.html</h6>
+      <h1>A deck written in HTML</h1>
+      <p class="teaser">No Markdown; same themes, plugins and packing</p>
+    </section>
+
+    <section data-tier="core">
+      <h2>Plain reveal.js syntax</h2>
+      <ul>
+        <li class="fragment">One &lt;section&gt; is one slide</li>
+        <li class="fragment">fragment and data-auto-animate work as usual</li>
+        <li class="fragment">Theme classes (cols, card …) work too</li>
+      </ul>
+      <aside class="notes">Speaker notes are aside.notes, as in reveal.js</aside>
+    </section>
+
+    <section data-tier="core">
+      <h2>Images with relative paths</h2>
+      <img src="../syntax/img/deck-flow.svg" alt="Flow">
+      <p class="small muted">Packing puts them inside the file</p>
+    </section>
+
+  </div></div>
+
+  <script type="application/yaml" id="deck-meta">
+theme: ember
+# plugins: [grid]
+  </script>
+
+  <script src="../../js/boot.js" data-config="none"></script>
+</body>
+</html>

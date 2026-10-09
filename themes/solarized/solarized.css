@@ -1,0 +1,92 @@
+/* solarized: Solarized colors (https://ethanschoonover.com/solarized, MIT). Light mode is the default; dark mode with the same 16 colors
+ * Layout and syntax rules are in base.css (always loaded first). Here only colors, fonts, backgrounds, code colors and diagram fills.
+ * Body text is one step darker than the original guide (base00/base0) so it doesn't look faint on screen shares and projectors. */
+
+:root {
+  --deck-modes: light dark;   /* modes this theme supports (read by the helper panel (E)). The first is the default */
+
+  --base03: #002b36; --base02: #073642; --base01: #586e75; --base00: #657b83;
+  --base0: #839496; --base1: #93a1a1; --base2: #eee8d5; --base3: #fdf6e3;
+  --yellow: #b58900; --orange: #cb4b16; --red: #dc322f; --magenta: #d33682;
+  --violet: #6c71c4; --blue: #268bd2; --cyan: #2aa198; --green: #859900;
+
+  /* light mode */
+  --bg: var(--base3);
+  --bg-2: var(--base2);
+  --bg-3: color-mix(in srgb, var(--base2) 70%, var(--base1));
+  --line: var(--base1);
+  --text: var(--base01);
+  --muted: var(--base00);
+  --accent: var(--orange);  /* highlight */
+  --cool: var(--blue);      /* secondary highlight */
+  --good: var(--green);
+  --bad: var(--red);
+  --warn: var(--yellow);
+  --h3-color: var(--base00);
+  --on-accent: var(--base3);
+  --code-bg: var(--base2);
+  --code-fg: var(--base01);
+  --code-comment: var(--base1);
+
+  /* code colors (Solarized's syntax colors. Mapping in base.css) */
+  --hl-keyword: var(--green); --hl-string: var(--cyan); --hl-number: var(--magenta);
+  --hl-comment: var(--code-comment); --hl-comment-style: italic;
+  --hl-function: var(--blue); --hl-type: var(--yellow); --hl-attr: var(--blue);
+  --hl-variable: var(--orange); --hl-meta: var(--orange); --hl-link: var(--violet);
+  --hl-deletion: var(--red); --hl-punct: var(--code-fg);
+
+  --r-background-color: var(--bg);
+  --r-main-font: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --r-heading-font: var(--r-main-font);
+  --r-code-font: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r-main-font-size: 44px;
+  --r-main-color: var(--text);
+  --r-heading-color: var(--base02);
+  --r-heading-font-weight: 700;
+  --r-heading-letter-spacing: -0.02em;
+  --r-link-color: var(--blue);
+  --r-selection-background-color: var(--base2);
+  --r-selection-color: var(--base02);
+}
+
+/* Dark mode */
+:root[data-mode="dark"] {
+  --bg: var(--base03);
+  --bg-2: var(--base02);
+  --bg-3: color-mix(in srgb, var(--base02) 75%, var(--base01));
+  --line: var(--base01);
+  --text: var(--base1);
+  --muted: var(--base0);
+  --accent: var(--yellow);  /* on a dark background yellow is clearer than orange */
+  --cool: var(--cyan);
+  --h3-color: var(--base0);
+  --on-accent: var(--base03);
+  --code-bg: var(--base02);
+  --code-fg: var(--base1);
+  --code-comment: var(--base01);
+  --r-heading-color: var(--base2);
+  --r-selection-background-color: var(--base01);
+  --r-selection-color: var(--base3);
+}
+
+html, body, html.reveal-full-page, html.reveal-full-page body, .reveal-viewport {
+  background: var(--bg);
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+
+/* ---------- Diagram (svg.dg) fills: colors mixed into the background (shared by both modes) ---------- */
+.dg .box.dim { fill: color-mix(in srgb, var(--red) 12%, var(--bg)); stroke: color-mix(in srgb, var(--red) 45%, var(--bg)); }
+.dg .box.new { fill: color-mix(in srgb, var(--accent) 16%, var(--bg)); stroke: var(--accent); }
+.dg .gate { fill: color-mix(in srgb, var(--text) 25%, var(--bg)); }
+.dg .oxide { fill: var(--bg-3); }
+.dg .store { fill: color-mix(in srgb, var(--accent) 16%, var(--bg)); stroke: var(--accent); stroke-width: 2; }
+.dg .sub { fill: var(--bg-2); stroke: var(--line); stroke-width: 2; }
+.dg .sd { fill: color-mix(in srgb, var(--blue) 16%, var(--bg)); }
+.dg .box.dir { fill: color-mix(in srgb, var(--yellow) 16%, var(--bg)); stroke: var(--yellow); }
+.dg .box.file { fill: color-mix(in srgb, var(--cool) 14%, var(--bg)); stroke: var(--cool); }
+.dg .box.bad { fill: color-mix(in srgb, var(--bad) 14%, var(--bg)); stroke: var(--bad); stroke-width: 4; }
+.dg .box.okc { fill: color-mix(in srgb, var(--good) 14%, var(--bg)); stroke: var(--good); }
+.dg text.y { fill: var(--yellow); font-weight: 700; }
+.dg .step.on { fill: color-mix(in srgb, var(--accent) 16%, var(--bg)); stroke: var(--accent); }

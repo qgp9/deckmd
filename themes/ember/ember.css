@@ -1,0 +1,93 @@
+/* ember: deckmd default theme. Dark background (taken from the KoSES-FI 2026 deck)
+ * Layout and syntax rules are in base.css (always loaded first). Here only colors, fonts, backgrounds, code colors and diagram fills. */
+
+:root {
+  --deck-modes: dark light;   /* modes this theme supports (read by the helper panel (E)). The first is the default */
+  --bg: #0e1117;
+  --bg-2: #161b24;
+  --bg-3: #1f2632;
+  --line: #2c3544;
+  --text: #e9edf3;
+  --muted: #8b96a8;
+  --accent: #ffb454;   /* highlight */
+  --cool: #5ccfe6;     /* secondary highlight */
+  --good: #7fd98a;
+  --bad: #ff6b6b;
+
+  --r-background-color: var(--bg);
+  --r-main-font: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --r-heading-font: var(--r-main-font);
+  --r-code-font: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r-main-font-size: 44px;
+  --r-main-color: var(--text);
+  --r-heading-color: #fff;
+  --r-heading-font-weight: 700;
+  --r-heading-letter-spacing: -0.02em;
+  --r-link-color: var(--cool);
+  --r-selection-background-color: var(--accent);
+  --r-selection-color: #000;
+  --code-bg: var(--bg-2);
+  --code-fg: var(--text);
+
+  /* code colors: the original Monokai scheme (mapping in base.css). The code box stays dark in light mode too, so unchanged */
+  --hl-keyword: #f92672; --hl-string: #e6db74; --hl-number: #ae81ff;
+  --hl-comment: #75715e;
+  --hl-function: #a6e22e; --hl-type: #66d9ef; --hl-attr: #a6e22e;
+  --hl-variable: #fd971f; --hl-meta: #75715e; --hl-link: #66d9ef;
+  --hl-deletion: #f92672; --hl-punct: var(--code-fg);
+}
+
+html, body, html.reveal-full-page, html.reveal-full-page body, .reveal-viewport {
+  background: var(--bg);
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+
+/* ---------- Diagram (svg.dg) fills ---------- */
+.dg .box.dim { fill: #2a2224; stroke: #5a3a3e; }
+.dg .box.new { fill: #4a3618; stroke: var(--accent); }
+.dg .gate { fill: #3a4558; }
+.dg .oxide { fill: #262d39; }
+.dg .store { fill: #3d3120; stroke: var(--accent); stroke-width: 2; }
+.dg .sub { fill: #1a2029; stroke: var(--line); stroke-width: 2; }
+.dg .sd { fill: #24303d; }
+.dg .box.dir { fill: #33301a; stroke: #e8c547; }
+.dg .box.file { fill: #15303b; stroke: #5ccfe6; }
+.dg .box.bad { fill: #3b1f1f; stroke: var(--bad); stroke-width: 4; }
+.dg .box.okc { fill: #1d3322; stroke: var(--good); }
+.dg text.y { fill: #e8c547; font-weight: 700; }
+.dg .step.on { fill: #3a2d18; stroke: var(--accent); }
+
+
+/* ---------- Light mode (mode: light, or auto when the OS is light). This theme's default is dark mode ---------- */
+:root[data-mode="light"] {
+  --bg: #ffffff;
+  --bg-2: #f3f5f9;
+  --bg-3: #e6eaf0;
+  --line: #cdd5e1;
+  --text: #1b2330;
+  --muted: #5c6a7e;
+  --accent: #c26a00;
+  --cool: #0b7a96;
+  --good: #2e7d4f;
+  --bad: #c0392b;
+  --r-heading-color: #0e1117;
+  --r-selection-color: #fff;
+  --on-accent: #fff;
+  --code-bg: #161b24;      /* code keeps the dark box (goes with the monokai colors) */
+  --code-fg: #e9edf3;
+}
+[data-mode="light"] .dg .box.dim { fill: #fbeaea; stroke: #e0a0a0; }
+[data-mode="light"] .dg .box.new { fill: #fdf0d8; stroke: var(--accent); }
+[data-mode="light"] .dg .gate { fill: #cfd6e3; }
+[data-mode="light"] .dg .oxide { fill: #e6eaf0; }
+[data-mode="light"] .dg .store { fill: #fdf0d8; stroke: var(--accent); stroke-width: 2; }
+[data-mode="light"] .dg .sub { fill: #f3f5f9; stroke: var(--line); stroke-width: 2; }
+[data-mode="light"] .dg .sd { fill: #dde3ee; }
+[data-mode="light"] .dg .box.dir { fill: #fff6d1; stroke: #e0b030; }
+[data-mode="light"] .dg .box.file { fill: #e3f4f8; stroke: var(--cool); }
+[data-mode="light"] .dg .box.bad { fill: #fdeaea; stroke: var(--bad); stroke-width: 4; }
+[data-mode="light"] .dg .box.okc { fill: #e6f5ea; stroke: var(--good); }
+[data-mode="light"] .dg text.y { fill: #8a6d00; font-weight: 700; }
+[data-mode="light"] .dg .step.on { fill: #fdf0d8; stroke: var(--accent); }

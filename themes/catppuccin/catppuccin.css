@@ -1,0 +1,85 @@
+/* catppuccin: Catppuccin colors (https://catppuccin.com, MIT). Dark mode = Mocha (default), light mode = Latte
+ * Layout and syntax rules are in base.css (always loaded first). Here only colors, fonts, backgrounds, code colors and diagram fills. */
+
+:root {
+  --deck-modes: dark light;   /* modes this theme supports (read by the helper panel (E)). The first is the default */
+
+  /* Mocha */
+  --base: #1e1e2e; --mantle: #181825; --crust: #11111b;
+  --surface0: #313244; --surface1: #45475a; --surface2: #585b70;
+  --overlay0: #6c7086; --overlay2: #9399b2; --subtext0: #a6adc8; --text-c: #cdd6f4;
+  --mauve: #cba6f7; --red: #f38ba8; --maroon: #eba0ac; --peach: #fab387; --yellow: #f9e2af;
+  --green: #a6e3a1; --teal: #94e2d5; --sky: #89dceb; --blue: #89b4fa; --lavender: #b4befe; --pink: #f5c2e7;
+
+  --bg: var(--base);
+  --bg-2: var(--mantle);
+  --bg-3: var(--surface0);
+  --line: var(--surface1);
+  --text: var(--text-c);
+  --muted: var(--overlay2);
+  --accent: var(--mauve);   /* highlight */
+  --cool: var(--sky);       /* secondary highlight */
+  --good: var(--green);
+  --bad: var(--red);
+  --warn: var(--peach);
+  --h3-color: var(--subtext0);
+  --on-accent: var(--crust);
+  --code-bg: var(--mantle);
+  --code-fg: var(--text-c);
+
+  /* code colors (Catppuccin's syntax color guide. Mapping in base.css) */
+  --hl-keyword: var(--mauve); --hl-string: var(--green); --hl-number: var(--peach);
+  --hl-comment: var(--overlay2); --hl-comment-style: italic;
+  --hl-function: var(--blue); --hl-type: var(--yellow); --hl-attr: var(--blue);
+  --hl-variable: var(--maroon); --hl-meta: var(--yellow); --hl-link: var(--sky);
+  --hl-deletion: var(--red); --hl-punct: var(--overlay2);
+
+  --r-background-color: var(--bg);
+  --r-main-font: "Pretendard Variable", "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  --r-heading-font: var(--r-main-font);
+  --r-code-font: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r-main-font-size: 44px;
+  --r-main-color: var(--text);
+  --r-heading-color: var(--lavender);
+  --r-heading-font-weight: 700;
+  --r-heading-letter-spacing: -0.02em;
+  --r-link-color: var(--blue);
+  --r-selection-background-color: var(--surface2);
+  --r-selection-color: var(--text-c);
+}
+
+/* Light mode = Latte */
+:root[data-mode="light"] {
+  --base: #eff1f5; --mantle: #e6e9ef; --crust: #dce0e8;
+  --surface0: #ccd0da; --surface1: #bcc0cc; --surface2: #acb0be;
+  --overlay0: #9ca0b0; --overlay2: #7c7f93; --subtext0: #6c6f85; --text-c: #4c4f69;
+  --mauve: #8839ef; --red: #d20f39; --maroon: #e64553; --peach: #fe640b; --yellow: #df8e1d;
+  --green: #40a02b; --teal: #179299; --sky: #04a5e5; --blue: #1e66f5; --lavender: #7287fd; --pink: #ea76cb;
+
+  --cool: #1e66f5;          /* Latte's sky is faint on white → blue */
+  --r-heading-color: #4c4f69;
+  --on-accent: var(--base);
+  --code-bg: var(--mantle);
+}
+
+html, body, html.reveal-full-page, html.reveal-full-page body, .reveal-viewport {
+  background: var(--bg);
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+
+/* ---------- Diagram (svg.dg) fills: colors mixed into the background (shared by both modes) ---------- */
+.dg .box.dim { fill: color-mix(in srgb, var(--red) 14%, var(--bg)); stroke: color-mix(in srgb, var(--red) 45%, var(--bg)); }
+.dg .box.new { fill: color-mix(in srgb, var(--accent) 20%, var(--bg)); stroke: var(--accent); }
+.dg .gate { fill: var(--surface1); }
+.dg .oxide { fill: var(--surface0); }
+.dg .store { fill: color-mix(in srgb, var(--accent) 20%, var(--bg)); stroke: var(--accent); stroke-width: 2; }
+.dg .sub { fill: var(--mantle); stroke: var(--line); stroke-width: 2; }
+.dg .sd { fill: color-mix(in srgb, var(--blue) 18%, var(--bg)); }
+.dg .box.dir { fill: color-mix(in srgb, var(--yellow) 18%, var(--bg)); stroke: var(--yellow); }
+.dg .box.file { fill: color-mix(in srgb, var(--cool) 16%, var(--bg)); stroke: var(--cool); }
+.dg .box.bad { fill: color-mix(in srgb, var(--bad) 16%, var(--bg)); stroke: var(--bad); stroke-width: 4; }
+.dg .box.okc { fill: color-mix(in srgb, var(--good) 16%, var(--bg)); stroke: var(--good); }
+.dg text.y { fill: var(--yellow); font-weight: 700; }
+.dg .step.on { fill: color-mix(in srgb, var(--accent) 20%, var(--bg)); stroke: var(--accent); }

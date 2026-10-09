@@ -1,0 +1,159 @@
+<!doctype html>
+<!--
+  Browser tests: start a web server at the repository top and open /tests/browser.html.
+    python3 -m http.server   →  http://localhost:8000/tests/browser.html
+  Opens the decks in iframes and checks slide counts, notes, outside requests, fonts and error screens, and also reopens E-key pack results.
+  The "bundled" rows open tests/out/ made by node --test (run it first; skipped if missing).
+  Results go in the table and window.testResults (title is PASS when all pass).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>tests</title>
+<style>
+  :root { color-scheme: light dark; --ok: #2e9e5b; --bad: #d64545; --skip: #999; }
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 24px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border-bottom: 1px solid #8884; padding: 4px 8px; text-align: left; vertical-align: top; }
+  td.r { font-weight: 600; } .ok { color: var(--ok); } .bad { color: var(--bad); } .skip { color: var(--skip); }
+  code { font-size: 12px; }
+  #stage { position: absolute; left: -20000px; top: 0; }
+  #stage iframe { width: 1280px; height: 720px; border: 0; }
+</style>
+</head>
+<body>
+<h1>deckmd browser tests</h1>
+<p id="sum">running…</p>
+<table><thead><tr><th>Result</th><th>What</th><th>URL</th><th>Seen</th></tr></thead><tbody id="rows"></tbody></table>
+<div id="stage"></div>
+<script>
+const R = '../';          // repository top
+const OUT = 'out/';       // node --test output
+
+// tests/fixtures/parse: --- and Note: inside code blocks stay body text; everything below the first Note: is notes
+function parseCheck(d) {
+  const s = d.querySelector('.slides > section');
+  const body = [...s.children].filter(c => c.tagName !== 'ASIDE').map(c => c.textContent).join(' ');
+  const notes = s.querySelector('aside.notes')?.textContent || '';
+  if (!/inside-code/.test(body) || !/after-code/.test(body)) return `body: ${body}`;
+  if (!/note-one/.test(notes) || !/Note:/.test(notes) || !/note-two/.test(notes)) return `notes: ${notes}`;
+  return true;
+}
+
+// Deck list: view and &core links for each example deck. Checks for the decks that should be there, not a count (so adding examples doesn't break it)
+const LIST_DECKS = ['grid/talk.md', 'interactive/talk.md', 'readme/rewrite.md', 'syntax/talk.md'];
+function listCheck(d) {
+  const hrefs = [...d.querySelectorAll('.deck-list a')].map(a => decodeURIComponent(a.getAttribute('href')));
+  const missing = LIST_DECKS.filter(f => !hrefs.includes(`?src=examples/${f}`) || !hrefs.includes(`?src=examples/${f}&core`));
+  return !missing.length || `missing from list: ${missing.join(', ')}`;
+}
+
+// Checks: slides and notes are counts, ext = number of outside requests (0 = offline), text = text that must be on screen, check = other checks
+const CASES = [
+  { group: 'view', name: 'example grid', url: `${R}?src=examples/grid/talk.md`, slides: 8, notes: 2, font: true },
+  { group: 'view', name: 'example syntax', url: `${R}?src=examples/syntax/talk.md`, slides: 11, notes: 2 },
+  { group: 'view', name: 'deck written in HTML', url: `${R}examples/page/`, slides: 3, notes: 1 },
+  { group: 'view', name: 'deck list', url: R, check: listCheck },
+  { group: 'view', name: '?pick comes before the list', url: `${R}?pick`, check: d => (!!d.querySelector('.deck-open') && !d.querySelector('.deck-list')) || 'file picker screen' },
+  { group: 'syntax', name: '--- and Note: inside code blocks', url: `${R}?src=tests/fixtures/parse/talk.md`, slides: 4, notes: 1, check: parseCheck },
+  { group: 'syntax', name: 'split by headings', url: `${R}?src=tests/fixtures/headings/talk.md`, slides: 3, text: ['horizontal rule inside code'] },
+  { group: 'syntax', name: '?core (defaultTier: core = slides without a tier stay)', url: `${R}?src=tests/fixtures/tiers/talk.md&core`, slides: 4 },
+  { group: 'syntax', name: '?core + defaultTier=none (core slides only)', url: `${R}?src=tests/fixtures/tiers/talk.md&core&defaultTier=none`, slides: 2 },
+  { group: 'syntax', name: '?core with no core slides shows all', url: `${R}?src=examples/grid/talk.md&core&defaultTier=none`, slides: 8 },
+  { group: 'errors', name: 'front matter YAML error', url: `${R}?src=tests/fixtures/bad-yaml/talk.md`, text: ["Can't open the deck", 'front matter (YAML)'] },
+  { group: 'errors', name: 'missing deck', url: `${R}?src=tests/fixtures/nothing.md`, text: ["Can't open the deck", '404'] },
+  { group: 'errors', name: 'no libraries', url: `${R}tests/fixtures/broken.html`, text: ["Can't open the deck"] },
+  { group: 'bundled', name: 'offline', url: `${OUT}grid.offline.html`, slides: 8, notes: 2, ext: 0, font: true, built: true },
+  { group: 'bundled', name: 'share', url: `${OUT}grid.share.html`, slides: 8, notes: 2, font: true, built: true },
+  { group: 'bundled', name: 'syntax offline', url: `${OUT}syntax.offline.html`, slides: 11, ext: 0, built: true },
+  { group: 'bundled', name: 'HTML deck offline', url: `${OUT}page.offline.html`, slides: 3, ext: 0, built: true },
+  { group: 'bundled', name: 'syntax test offline', url: `${OUT}parse.offline.html`, slides: 4, notes: 1, ext: 0, check: parseCheck, built: true },
+  { group: 'bundled', name: 'split by headings offline', url: `${OUT}headings.offline.html`, slides: 3, ext: 0, built: true },
+  { group: 'bundled', name: 'assets offline', url: `${OUT}assets.offline.html`, slides: 3, built: true,
+    check: d => (!(d.querySelector('img[alt="present"]')?.src.startsWith('data:') && d.querySelector('section[data-background-image^="data:"]')) ? 'image and background as data:'
+      : d.querySelectorAll('section[data-background-video^="blob:"]').length !== 2 ? 'both video backgrounds as blob: (reveal.js splits data: at commas)' : true) },
+  { group: 'bundled', name: 'non-ASCII and space in path', url: `${OUT}${encodeURI('ünïcode dir/résult file.html')}`, slides: 4, ext: 0, built: true },
+  { group: 'E key', name: 'pack offline', pack: 'offline', url: `${R}?src=examples/grid/talk.md`, slides: 8, notes: 2, ext: 0, font: true },
+  { group: 'E key', name: 'pack share', pack: 'share', url: `${R}?src=examples/grid/talk.md`, slides: 8, notes: 2, font: true },
+  { group: 'E key', name: 'bundled file again as share', pack: 'share', url: `${OUT}grid.offline.html`, slides: 8, built: true },
+];
+
+const stage = document.getElementById('stage');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Open one iframe and wait for the deck to be fully up (or the error, list or picker screen)
+async function load(src, srcdoc) {
+  const f = document.createElement('iframe');
+  if (srcdoc != null) f.srcdoc = srcdoc; else f.src = src;
+  stage.appendChild(f);
+  const t0 = Date.now();
+  for (;;) {
+    await sleep(100);
+    const w = f.contentWindow, d = f.contentDocument;
+    const settled = d && (w.Reveal?.isReady?.() || d.querySelector('.deck-list, .deck-open') || /Can't open the deck/.test(d.body?.textContent || ''));
+    if (settled) { await w.document.fonts?.ready; await sleep(300); return f; }
+    if (Date.now() - t0 > 10000) return f;
+  }
+}
+
+function measure(f) {
+  const w = f.contentWindow, d = f.contentDocument;
+  const res = w.performance.getEntriesByType('resource').map(e => e.name).filter(u => !/^(data|blob):/.test(u));
+  return {
+    slides: d.querySelectorAll('.reveal .slides > section').length,
+    notes: d.querySelectorAll('aside.notes').length,
+    ext: res.filter(u => !u.startsWith(location.origin)).length,
+    font: w.document.fonts.check('16px "Pretendard Variable"') && [...w.document.fonts].some(x => x.family.replace(/"/g, '') === 'Pretendard Variable' && x.status === 'loaded'),
+    text: (d.querySelector('.reveal .slides') || d.body)?.textContent || '',   // text drawn on screen (excluding the embedded Markdown source)
+  };
+}
+
+function judge(c, m, d) {
+  const why = [];
+  for (const k of ['slides', 'notes', 'ext']) if (c[k] != null && m[k] !== c[k]) why.push(`${k} ${m[k]} (expected ${c[k]})`);
+  if (c.font && !m.font) why.push('font not loaded');
+  for (const t of c.text || []) if (!m.text.includes(t)) why.push(`"${t}" missing`);
+  if (c.check) { const r = c.check(d); if (r !== true) why.push(r || 'check'); }
+  return why;
+}
+
+async function exists(url) { try { return (await fetch(url, { method: 'HEAD' })).ok; } catch { return false; } }
+
+const results = window.testResults = [];
+function row(c, status, seen) {
+  results.push({ group: c.group, name: c.name, status, seen });
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td class="r ${status}">${{ ok: 'pass', bad: 'fail', skip: 'skipped' }[status]}</td><td>${c.group} · ${c.name}</td><td><a href="${c.url}" target="_blank"><code>${c.url}</code></a>${c.pack ? ` → E key ${c.pack}` : ''}</td><td>${seen}</td>`;
+  document.getElementById('rows').appendChild(tr);
+}
+
+(async () => {
+  // Refetch the cache so the changed code is tested right away (the iframes use the cache)
+  for (const f of ['js/boot.js', 'js/defaults.js', 'js/deck.js', 'js/notices.js', 'js/pack.js', 'js/md-spans.js', 'css/base.css', 'themes/ember/ember.css', 'plugins/grid/grid.js', 'plugins/grid/grid.css', 'deck.config.js']) {
+    await fetch(R + f, { cache: 'reload' }).catch(() => {});
+  }
+  for (const c of CASES) {
+    try {
+      if (c.built && !(await exists(c.url))) { row(c, 'skip', 'run node --test first'); continue; }
+      let f = await load(c.url);
+      let extra = '';
+      if (c.pack) {
+        const { html, missing } = await f.contentWindow.DeckPack.pack(c.pack, () => {});
+        f.remove();
+        extra = ` · ${Math.round(html.length / 1024)} KB${missing.length ? ` · not embedded ${missing.join(', ')}` : ''}`;
+        f = await load(null, html);
+      }
+      const m = measure(f);
+      const why = judge(c, m, f.contentDocument);
+      f.remove();
+      row(c, why.length ? 'bad' : 'ok', (why.join(' · ') || `slides ${m.slides} · notes ${m.notes} · outside requests ${m.ext}${c.font ? ' · font' : ''}`) + extra);
+    } catch (e) { row(c, 'bad', String(e)); }
+  }
+  const n = s => results.filter(r => r.status === s).length;
+  document.getElementById('sum').textContent = `pass ${n('ok')} · fail ${n('bad')} · skipped ${n('skip')}`;
+  document.title = n('bad') ? 'FAIL' : 'PASS';
+  document.body.dataset.done = '1';
+})();
+</script>
+</body>
+</html>

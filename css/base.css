@@ -1,0 +1,269 @@
+/* deckmd common rules (reveal.js 6, 1920x1080) - always loaded before the theme, whatever the theme.
+ *
+ * The classes the Markdown syntax uses (.cols .card .small .muted .chapter .flow .timeline …) and
+ * their look are defined here. Colors and fonts are used only through variables, so a theme fills in the values and overrides only what it needs.
+ *
+ * Variables a theme must define
+ *   colors   --bg --bg-2 --bg-3 --line --text --muted --accent --cool --good --bad
+ *            (if not set, the defaults in :root below: derived from --r-*. reveal.js built-in themes are painted with these)
+ *   reveal   --r-background-color --r-main-font --r-heading-font --r-code-font --r-main-font-size --r-main-color
+ *            --r-heading-color --r-heading-font-weight --r-heading-letter-spacing --r-link-color
+ *            --r-selection-background-color --r-selection-color
+ * Optional variables (in parentheses = when not set)
+ *   --h3-color (--muted) · --on-accent (#000, text on the highlight color) · --warn (--accent, table td.m)
+ *   --code-bg (#272822) · --code-fg (#ddd) : code box background and text. If not set, monokai's dark box
+ *   --hl-keyword --hl-string --hl-number --hl-comment --hl-function --hl-type --hl-attr --hl-variable
+ *   --hl-meta --hl-link --hl-deletion --hl-punct --hl-comment-style : code colors (see "Code colors" below. If not set, monokai colors)
+ * Painted by the theme itself: html/body background, diagram fills (.dg .box.dim etc.), decorations (logos etc.)
+ * Light/dark mode: deck.js turns the mode from config, front matter or URL into <html data-mode="dark|light"> (not added if unset).
+ *   A theme that supports modes puts its default mode's values on :root and overrides the opposite mode like :root[data-mode="light"] { … }.
+ *   A theme that doesn't support modes ignores the attribute, so it works as is.
+ *   Supported modes are declared on :root as --deck-modes: dark light; (the first is the default). The helper panel (E) reads this to show mode buttons. Without the declaration, no buttons.
+ * The font (Pretendard) is loaded from the CDN by js/boot.js (from vendor/ with data-local)
+ */
+
+/* Defaults of deckmd variables: derived from reveal.js variables (--r-*). Themes load after this file, so they override with their own values.
+ * deckmd themes set everything, so this has no effect for them; reveal.js built-in themes (theme: reveal/white) set only --r-*, so cards, code boxes etc. are painted with these values. */
+:root {
+  --bg: var(--r-background-color);
+  --text: var(--r-main-color);
+  --accent: var(--r-link-color);
+  --cool: var(--r-link-color-dark, var(--r-link-color));
+  --muted: color-mix(in srgb, var(--text) 60%, var(--bg));
+  --bg-2: color-mix(in srgb, var(--text) 6%, var(--bg));
+  --bg-3: color-mix(in srgb, var(--text) 12%, var(--bg));
+  --line: color-mix(in srgb, var(--text) 22%, var(--bg));
+  --good: #2e9d5b;
+  --bad: #d64545;
+}
+
+/* reveal.css doesn't use the --r-* variables (built-in themes do that), so apply them here directly */
+.reveal {
+  font-size: var(--r-main-font-size);
+  color: var(--r-main-color);
+  font-family: var(--r-main-font);
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  word-break: keep-all;          /* Korean: break lines between words */
+  overflow-wrap: break-word;
+}
+.reveal .slides section { text-align: left; }
+.reveal .slides > section, .reveal .slides > section > section { padding: 0 40px; box-sizing: border-box; }
+
+.reveal h1, .reveal h2, .reveal h3 {
+  margin: 0 0 0.5em; line-height: 1.2;
+  font-family: var(--r-heading-font);
+  font-weight: var(--r-heading-font-weight);
+  color: var(--r-heading-color);
+  letter-spacing: var(--r-heading-letter-spacing);
+  text-transform: none;
+}
+.reveal a { color: var(--r-link-color); text-decoration: none; }
+.reveal ::selection { background: var(--r-selection-background-color); color: var(--r-selection-color); }
+.reveal h1 { font-size: 2.1em; }
+.reveal h2 { font-size: 1.45em; }
+.reveal h3 { font-size: 1.05em; color: var(--h3-color, var(--muted)); font-weight: 600; }
+.reveal p { margin: 0 0 0.7em; }
+.reveal ul, .reveal ol { margin: 0 0 0.7em 1.1em; display: block; }
+.reveal li { margin-bottom: 0.4em; }
+.reveal li::marker { color: var(--muted); }
+.reveal strong { color: var(--accent); font-weight: 700; }
+.reveal em { color: var(--cool); font-style: normal; }
+.reveal code {
+  font-family: var(--r-code-font);
+  background: var(--bg-3);
+  color: var(--text);
+  padding: 0.05em 0.35em;
+  border-radius: 6px;
+  font-size: 0.85em;
+}
+.reveal pre { width: 100%; box-shadow: none; font-size: 0.72em; margin: 0.4em 0 0.8em; }
+.reveal pre code { display: block; overflow-x: auto; padding: 0.8em 1em; border-radius: 14px; max-height: 760px; line-height: 1.5; background: var(--code-bg, #272822); color: var(--code-fg, #ddd); }
+
+/* ---------- Code colors (hljs-* classes added by the highlight plugin) ----------
+ * The class → variable mapping is only here. Themes set only the --hl-* variables. If not set, the monokai colors in parentheses (same look as reveal.js's monokai.css) */
+.reveal .hljs-keyword, .reveal .hljs-selector-tag, .reveal .hljs-tag, .reveal .hljs-name, .reveal .hljs-strong { color: var(--hl-keyword, #f92672); }
+.reveal .hljs-doctag { color: var(--hl-keyword, inherit); }
+.reveal .hljs-string, .reveal .hljs-template-tag, .reveal .hljs-addition, .reveal .hljs-emphasis { color: var(--hl-string, #a6e22e); }
+.reveal .hljs-regexp { color: var(--hl-string, #bf79db); }
+.reveal .hljs-number { color: var(--hl-number, inherit); }
+.reveal .hljs-literal { color: var(--hl-number, #f92672); }
+.reveal .hljs-symbol { color: var(--hl-number, #bf79db); }
+.reveal .hljs-comment, .reveal .hljs-quote { color: var(--hl-comment, #75715e); font-style: var(--hl-comment-style, normal); }
+.reveal .hljs-title, .reveal .hljs-section { color: var(--hl-function, #a6e22e); }
+.reveal .hljs-title.class_, .reveal .hljs-type, .reveal .hljs-built_in, .reveal .hljs-builtin-name { color: var(--hl-type, #a6e22e); }
+.reveal .hljs-attribute { color: var(--hl-attr, #bf79db); }
+.reveal .hljs-attr, .reveal .hljs-property { color: var(--hl-attr, inherit); }
+.reveal .hljs-variable, .reveal .hljs-template-variable { color: var(--hl-variable, #a6e22e); }
+.reveal .hljs-params { color: var(--hl-variable, inherit); }
+.reveal .hljs-meta { color: var(--hl-meta, #75715e); }
+.reveal .hljs-selector-attr, .reveal .hljs-selector-pseudo { color: var(--hl-meta, #a6e22e); }
+.reveal .hljs-selector-id, .reveal .hljs-selector-class { color: var(--hl-meta, inherit); }
+.reveal .hljs-link { color: var(--hl-link, #bf79db); }
+.reveal .hljs-bullet { color: var(--hl-link, #a6e22e); }
+.reveal .hljs-code { color: var(--hl-link, #66d9ef); }
+.reveal .hljs-operator { color: var(--hl-link, inherit); }
+.reveal .hljs-deletion { color: var(--hl-deletion, #75715e); }
+.reveal .hljs-subst { color: var(--hl-punct, #a6e22e); }
+.reveal .hljs-punctuation { color: var(--hl-punct, inherit); }
+.reveal .hljs-keyword, .reveal .hljs-selector-tag, .reveal .hljs-literal, .reveal .hljs-doctag, .reveal .hljs-title,
+.reveal .hljs-section, .reveal .hljs-type, .reveal .hljs-selector-id { font-weight: bold; }
+
+/* ---------- Layout helpers ---------- */
+.center { text-align: center !important; }
+.muted { color: var(--muted); }
+.small { font-size: 0.7em; }
+.tiny { font-size: 0.55em; }
+.big { font-size: 1.4em; }
+.huge { font-size: 3.2em; font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: start; }
+.cols.three { grid-template-columns: 1fr 1fr 1fr; gap: 36px; }
+.cols.wide-left { grid-template-columns: 1.4fr 1fr; }
+.cols.wide-right { grid-template-columns: 1fr 1.4fr; }
+.cols.mid { align-items: center; }
+.card {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 28px 36px;
+}
+.card h3 { margin-bottom: 0.4em; }
+.card.hl { border-color: var(--accent); }
+.card.cool { border-color: var(--cool); }
+.card p:last-child, .card ul:last-child { margin-bottom: 0; }
+
+/* One-sentence summary slide */
+.statement { font-size: 1.6em; line-height: 1.4; font-weight: 700; letter-spacing: -0.02em; }
+
+/* Chapter divider slide */
+.chapter .num {
+  font-size: 0.55em; letter-spacing: 0.2em; color: var(--accent);
+  text-transform: uppercase; margin-bottom: 0.4em; font-weight: 600;
+}
+.chapter h1 { margin-bottom: 0.3em; }
+.chapter .teaser { color: var(--muted); font-size: 0.8em; }
+
+/* Quote / message */
+.message {
+  border-left: 6px solid var(--accent);
+  padding: 0.2em 0 0.2em 1em;
+  font-size: 1.05em;
+  margin: 1em 0 0;
+}
+.message.cool { border-color: var(--cool); }
+.quote { font-size: 1.15em; font-style: italic; color: var(--text); }
+.src { font-size: 0.5em; color: var(--muted); margin-top: 1.2em; }
+
+/* For showing byte sequences */
+.bytes { font-family: var(--r-code-font); letter-spacing: 0.02em; font-size: 0.8em; }
+.bytes .u { color: var(--cool); }
+.bytes .b { color: var(--accent); }
+
+
+/* Horizontal steps (journaling timeline, kernel lineage, etc.) */
+.flow { display: flex; align-items: stretch; gap: 0; }
+.flow > .node {
+  flex: 1; background: var(--bg-2); border: 1px solid var(--line); border-radius: 16px;
+  padding: 22px 22px; font-size: 0.8em; font-weight: 700; text-align: center;
+}
+.flow > .node small { display: block; font-weight: 400; color: var(--muted); font-size: 0.8em; margin-top: 0.3em; }
+.flow > .node.hl { border-color: var(--accent); }
+.flow > .node.cool { border-color: var(--cool); }
+.flow > .arr { align-self: center; color: var(--muted); padding: 0 12px; font-size: 0.8em; }
+
+.timeline { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+.timeline .step {
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 16px;
+  padding: 26px 28px; font-size: 0.85em; font-weight: 700; position: relative;
+}
+.timeline .step small { display: block; font-weight: 400; color: var(--muted); margin-top: 0.3em; font-size: 0.85em; }
+.timeline .step.commit { border-color: var(--accent); }
+.crashes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-top: 26px; }
+.crash { font-size: 0.75em; padding: 22px 26px; line-height: 1.45; border-radius: 14px; background: var(--bg-3); }
+.crash .bolt { color: var(--accent); font-weight: 800; }
+.crash b { color: var(--cool); }
+
+
+/* Tables */
+.reveal table { border-collapse: collapse; font-size: 0.68em; width: 100%; }
+.reveal th, .reveal td { border-bottom: 1px solid var(--line); padding: 0.5em 0.8em; text-align: left; vertical-align: top; }
+.reveal th { color: var(--muted); font-weight: 600; }
+.reveal td.y { color: var(--good); }
+.reveal td.n { color: var(--bad); }
+.reveal td.m { color: var(--warn, var(--accent)); }
+
+/* ---------- Inline SVG diagrams ---------- */
+svg.dg { width: 100%; height: auto; display: block; overflow: visible; }
+.dg text { fill: var(--text); font-family: var(--r-main-font); font-size: 30px; }
+.dg text.m { fill: var(--muted); font-size: 24px; }
+.dg text.a, .dg tspan.a { fill: var(--accent); font-weight: 700; }
+.dg text.c { fill: var(--cool); font-weight: 700; }
+.dg text.b { font-weight: 700; }
+.dg .box { fill: var(--bg-2); stroke: var(--line); stroke-width: 2; }
+.dg .box.hl { stroke: var(--accent); }
+.dg .box.c { stroke: var(--cool); }
+.dg .e { fill: var(--cool); }
+.dg .ln { stroke: var(--muted); stroke-width: 3; fill: none; }
+.dg .ln.a { stroke: var(--accent); stroke-width: 5; }
+.dg .ln.dash { stroke-dasharray: 10 10; }
+.dg .ar { stroke: var(--accent); stroke-width: 5; fill: none; }
+.dg .ar.c { stroke: var(--cool); }
+.dg .pt { fill: var(--accent); }
+.dg .pt.c { fill: var(--cool); }
+
+
+.dg .box.hlb { fill: none; stroke: var(--accent); stroke-width: 6; }
+.dg text.r { fill: var(--bad); font-weight: 700; }
+.dg text.g { fill: var(--good); font-weight: 700; }
+.dg .step { fill: var(--bg-2); stroke: var(--line); stroke-width: 2; }
+
+
+/* ---------- Draft mode (?draft): tier / time labels ---------- */
+.draft .slides section[data-tier]::before {
+  content: attr(data-tier);
+  position: absolute; top: -30px; right: 40px;
+  font-size: 18px; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 2px 12px; border-radius: 999px;
+  background: var(--bg-3); color: var(--muted);
+}
+.draft .slides section[data-tier="core"]::before { background: var(--accent); color: var(--on-accent, #000); }
+.draft .slides section[data-min]::after {
+  content: attr(data-min) " min";
+  position: absolute; top: -30px; right: 160px;
+  font-size: 18px; color: var(--muted);
+}
+
+/* Review notes (?draft) */
+.cm-notes { position: absolute; top: 10px; right: 20px; max-width: 640px; display: flex; flex-direction: column; gap: 8px; z-index: 20; }
+.cm-notes > div {
+  background: #fff1a8; color: #2a2400; font-size: 22px; line-height: 1.4; padding: 8px 14px; border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); transform: rotate(-0.6deg);
+}
+
+
+
+/* ---------- Additions for Markdown ---------- */
+/* Chapter slide: ###### small header = section label, {.teaser} = subtitle */
+.reveal .chapter h6 { font-size: 0.55em; letter-spacing: 0.2em; color: var(--accent); text-transform: uppercase; margin-bottom: 0.4em; font-weight: 600; }
+.reveal .teaser { color: var(--muted); font-size: 0.8em; }
+/* Blockquote = message line */
+.reveal blockquote { border-left: 6px solid var(--accent); padding: 0.2em 0 0.2em 1em; margin: 1em 0 0; font-size: 1.05em; font-style: normal; background: none; box-shadow: none; width: auto; }
+.reveal blockquote p { margin: 0; }
+/* First heading inside ::: card */
+.card > h3:first-child, .card > h4:first-child { margin-top: 0; }
+/* Images */
+.reveal img { max-width: 100%; }
+/* Plugin error display */
+.reveal pre.deck-error { border: 2px dashed var(--bad); color: var(--bad); padding: 10px; font-size: 0.5em; }
+/* Slide number · progress bar */
+.reveal .progress { color: var(--accent); height: 6px; }
+.reveal .slide-number { background: transparent; color: var(--muted); font-size: 22px; }
+.reveal .controls { color: var(--accent); }
+
+/* Numbered circle list: {.steps-ol} at the end of a numbered list */
+.steps-ol .rd { font: 0.8em var(--r-code-font); color: var(--cool); margin-left: 0.6em; white-space: nowrap; }
+.steps-ol { counter-reset: s; list-style: none; margin-left: 0 !important; }
+.steps-ol li { counter-increment: s; font-size: 0.7em; }
+.steps-ol li::before { content: counter(s); display: inline-block; width: 1.5em; height: 1.5em; line-height: 1.5em; text-align: center; border-radius: 50%; background: var(--accent); color: var(--on-accent, #000); font-weight: 800; margin-right: 0.5em; font-size: 0.85em; }
+.caption { font-size: 0.8em; min-height: 2.6em; }

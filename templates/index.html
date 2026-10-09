@@ -1,0 +1,23 @@
+<!doctype html>
+<!--
+  The launcher page for your talks repository. Put this file at the top of the repository as index.html, and deckmd in a deckmd/ folder (git submodule, etc.).
+    index.html                          deck list (home: 'list' in deck.config.js)
+    index.html?src=talks/2026-10-talk/talk.md  one deck
+  boot.js loads the libraries (CDN), theme and deck.js in order. Options:
+    data-local              libraries and fonts from deckmd/vendor/ (offline; run node deckmd/tools/localize.mjs first)
+    data-skip="highlight"   leave out (reveal, highlight, notes, font, markdown, yaml, pack, config)
+    data-config="x.js"      config file (default: deck.config.js next to this file, none = no config)
+  To manage a file yourself, just write its tag here (boot.js skips ones with the same name).
+  With every tag written out: templates/index.full.html
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Talks</title>
+</head>
+<body>
+  <div class="reveal"><div class="slides"></div></div>
+  <script src="deckmd/js/boot.js"></script>
+</body>
+</html>
