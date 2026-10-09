@@ -451,6 +451,9 @@ test('DeckMD.version equals package.json (npm version bumps both)', () => {
   const { version } = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   const m = /^\s*version: '([^']*)',/m.exec(fs.readFileSync(path.join(ROOT, 'js/deck.js'), 'utf8'));
   assert.equal(m?.[1], version);
+  const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
+  assert.equal(lock.version, version, 'package-lock.json');
+  assert.equal(lock.packages[''].version, version, 'package-lock.json packages[""]');
 });
 
 test("images starting with '/' are relative to the launcher page too (files outside the deck folder are included)", () => {
