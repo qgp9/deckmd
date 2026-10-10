@@ -573,6 +573,69 @@ test('serve: a symbolic link is followed only while it stays inside the served f
   }
 });
 
+test('serve: a link inside an allowed folder can not lead past the policy (another folder, a dot folder, a key file under a harmless name)', async (t) => {
+  if (process.platform === 'win32') return t.skip('symlinks need privileges on Windows');
+  const dir = path.join(OUT, 'serve-links-policy');
+  for (const d of ['slides/a', 'private', '.secrets', 'shared']) fs.mkdirSync(path.join(dir, d), { recursive: true });
+  const put = (rel, text) => fs.writeFileSync(path.join(dir, rel), text);
+  put('slides/a/deck.md', '# A\n'); put('private/secret.txt', 'S3CRET'); put('.secrets/token.txt', 'TOKEN'); put('key.pem', 'PEM'); put('shared/pic.png', 'png');
+  fs.symlinkSync('../../private', path.join(dir, 'slides/a/private'));
+  fs.symlinkSync('../../.secrets', path.join(dir, 'slides/a/hidden'));
+  fs.symlinkSync('../../key.pem', path.join(dir, 'slides/a/key.txt'));
+  fs.symlinkSync('../../shared', path.join(dir, 'slides/a/shared'));
+  const blocked = ['slides/a/private/secret.txt', 'slides/a/hidden/token.txt', 'slides/a/key.txt', 'slides/a/private/', 'slides/a/hidden/'];
+  // without a project: the policy applies to where the link ends up, so another folder, a dot folder and a key file stay hidden
+  await withServe(['slides/a/deck.md'], dir, async (base) => {
+    assert.equal((await get(`${base}slides/a/deck.md`)).status, 200);
+    for (const p of blocked) {
+      const r = await get(base + p);
+      assert.equal(r.status, 404, p);
+      assert.doesNotMatch(r.text, /S3CRET|TOKEN|PEM/, p);
+    }
+    assert.equal((await get(`${base}slides/a/shared/pic.png`)).status, 404, 'another folder than the deck folders, even through a link');
+    assert.doesNotMatch((await get(`${base}slides/a/`)).text, /href="(hidden|private|key\.txt)/, 'links to hidden things are not even listed');
+  });
+  // in a project: the folder is served as a whole, but dot folders and other types still are not, however they are reached
+  put('index.html', '<script src="deckmd/js/boot.js"></script>\n');
+  await withServe([], dir, async (base) => {
+    for (const p of ['slides/a/hidden/token.txt', 'slides/a/key.txt', 'key.pem', '.secrets/token.txt']) {
+      const r = await get(base + p);
+      assert.equal(r.status, 404, p);
+      assert.doesNotMatch(r.text, /TOKEN|PEM/, p);
+    }
+    assert.equal((await get(`${base}slides/a/private/secret.txt`)).text, 'S3CRET', 'a project serves its folders, also through a link inside the folder');
+    assert.equal((await get(`${base}slides/a/shared/pic.png`)).status, 200);
+  });
+});
+
+test('serve: a deck.config.js that is a link out of the folder is refused on both endpoints; one that stays inside works', async (t) => {
+  if (process.platform === 'win32') return t.skip('symlinks need privileges on Windows');
+  const top = path.join(OUT, 'serve-config-link');
+  const dir = path.join(top, 'site');
+  for (const d of [path.join(dir, 'slides/a'), path.join(dir, 'shared'), path.join(dir, '.hidden'), path.join(top, 'outside')]) fs.mkdirSync(d, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'slides/a/deck.md'), '# A\n');
+  fs.writeFileSync(path.join(dir, 'index.html'), '<script src="deckmd/js/boot.js"></script>\n');
+  fs.writeFileSync(path.join(top, 'outside/outside.js'), 'window.OUTSIDE_MARKER = 1;\n');
+  fs.writeFileSync(path.join(dir, 'shared/real.config.js'), "window.DeckConfig = { title: 'real' };\n");
+  fs.writeFileSync(path.join(dir, '.hidden/hidden.config.js'), "window.DeckConfig = { title: 'hidden' };\n");
+  fs.writeFileSync(path.join(dir, 'shared/config.pem'), "window.DeckConfig = { title: 'pem' };\n");
+  const link = path.join(dir, 'deck.config.js');
+  for (const [target, ok] of [['../outside/outside.js', false], ['.hidden/hidden.config.js', false], ['shared/real.config.js', true]]) {
+    fs.rmSync(link, { force: true });
+    fs.symlinkSync(target, link);
+    await withServe(['slides/a/deck.md'], dir, async (base) => {
+      for (const p of ['deck.config.js', '_deckmd/config.js']) {
+        const r = await get(base + p);
+        if (ok) { assert.equal(r.status, 200, `${target} ${p}`); assert.match(r.text, /title: 'real'/); }
+        else { assert.equal(r.status, 403, `${target} ${p}`); assert.doesNotMatch(r.text, /OUTSIDE_MARKER|hidden/, `${target} ${p}`); }
+      }
+    });
+  }
+  fs.rmSync(link, { force: true });                                                  // a served type is needed too: a link to a .pem is not a config
+  fs.symlinkSync('shared/config.pem', link);
+  await withServe(['slides/a/deck.md'], dir, async (base) => assert.equal((await get(`${base}deck.config.js`)).status, 403));
+});
+
 test('serve --host 0.0.0.0 warns that the folder is open to the network (and the default does not)', async () => {
   const dir = path.join(OUT, 'serve-warn');
   fs.mkdirSync(dir, { recursive: true });

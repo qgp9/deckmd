@@ -85,7 +85,7 @@ export async function serve(args) {
   const configUrl = ownIndex ? `/${posix(path.normalize(configName))}` : null;                      // where the page asks for its config
   const makeConfig = () => {                                                                         // read on every request: edit deck.config.js, reload
     const mine = { home: decks.length === 1 ? 'deck' : 'list', src: decks[0]?.src, decks };
-    if (project && hasConfig) return `${fs.readFileSync(path.join(cwd, configName), 'utf8').trimEnd()}\n\n// deckmd serve: the files you gave it replace home, src and decks\nObject.assign(window.DeckConfig = window.DeckConfig || {}, ${JSON.stringify(mine, null, 2)});\n`;
+    if (project && hasConfig) return `${readConfigText().trimEnd()}\n\n// deckmd serve: the files you gave it replace home, src and decks\nObject.assign(window.DeckConfig = window.DeckConfig || {}, ${JSON.stringify(mine, null, 2)});\n`;
     return `// made by deckmd serve for the files you gave it\nwindow.DeckConfig = ${JSON.stringify({ title: 'Decks', ...mine }, null, 2)};\n`;
   };
   const note = !files.length ? '' : project ? `using ${[ownIndex && 'index.html', hasConfig && configName].filter(Boolean).join(' and ')} from this folder; your files replace home, src and decks`
@@ -127,6 +127,26 @@ export async function serve(args) {
   const realRoot = fs.realpathSync(root);
   const packagePublic = [...PACKAGE_DIRS].map(d => path.join(fs.realpathSync(ROOT), d));
   const insideOf = (real, base) => real === base || real.startsWith(base + path.sep);
+  // The policy again for where a path really ends up: a link must not lead to what the policy hides (a dot folder, another folder, a key file
+  // under a harmless name). The public folders of deckmd's own package are the exception.
+  const realWhy = (real, isDir) => {
+    if (packagePublic.some(b => insideOf(real, b))) return null;
+    const rp = path.relative(realRoot, real).split(path.sep).filter(Boolean);
+    if (rp.some(p => p.startsWith('.'))) return 'dot files and folders are never served';
+    return notServed(rp, isDir);
+  };
+  // The project's config, read only after checking where it really is (it may be a link): inside the served folder, not under a dot folder, a served type
+  const readConfigText = () => {
+    const real = fs.realpathSync(path.join(cwd, configName));
+    if (!insideOf(real, realRoot) || path.relative(realRoot, real).split(path.sep).some(p => p.startsWith('.')) || !SERVED_TYPES.has(path.extname(real).toLowerCase())) {
+      throw Object.assign(new Error('Forbidden: the config is a symbolic link that leaves the served folder (or leads to something that is not served)'), { status: 403 });
+    }
+    return fs.readFileSync(real, 'utf8');
+  };
+  const sendConfig = (req, res) => {
+    try { send(req, res, 200, TYPES['.js'], makeConfig()); }
+    catch (e) { text(req, res, e.status || (e.code === 'ENOENT' ? 404 : 500), e.status ? e.message : e.code === 'ENOENT' ? 'Not found' : 'Server error'); }
+  };
   const resolveInside = (file, bases, done) => fs.realpath(file, (err, real) => (err ? done(404) : bases.some(b => insideOf(real, b)) ? done(null, real) : done(403)));
 
   const send = (req, res, code, type, body) => { res.writeHead(code, { 'content-type': type, 'cache-control': 'no-cache' }); res.end(req.method === 'HEAD' ? undefined : body); };
@@ -134,8 +154,17 @@ export async function serve(args) {
   const sendFile = (req, res, file) => fs.readFile(file, (err, buf) => (err ? text(req, res, 404, 'Not found') : send(req, res, 200, TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream', buf)));
   const serveFile = (req, res, file, bases) => resolveInside(file, bases, (code, real) => (code ? text(req, res, code, code === 403 ? 'Forbidden: a symbolic link that leaves the served folder' : 'Not found') : sendFile(req, res, real)));
   const listing = (dir, urlPath, parts) => {
-    const rows = fs.readdirSync(dir, { withFileTypes: true }).filter(d => !d.name.startsWith('.') && !notServed([...parts, d.name], d.isDirectory())).sort((a, b) => a.name.localeCompare(b.name))
-      .map(d => { const name = d.name + (d.isDirectory() ? '/' : ''); return `<li><a href="${encodeURIComponent(d.name)}${d.isDirectory() ? '/' : ''}">${esc(name)}</a></li>`; });
+    // Each entry is judged by where it really leads (a link to a hidden folder or a key file is not listed), and a link to a folder is shown as a folder
+    const entries = [];
+    for (const d of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (d.name.startsWith('.')) continue;
+      let real, isDir;
+      try { real = fs.realpathSync(path.join(dir, d.name)); isDir = fs.statSync(real).isDirectory(); } catch { continue; }
+      if (![realRoot, ...packagePublic].some(base => insideOf(real, base)) || notServed([...parts, d.name], isDir) || realWhy(real, isDir)) continue;
+      entries.push({ name: d.name, isDir });
+    }
+    const rows = entries.sort((x, y) => x.name.localeCompare(y.name))
+      .map(e => `<li><a href="${encodeURIComponent(e.name)}${e.isDir ? '/' : ''}">${esc(e.name + (e.isDir ? '/' : ''))}</a></li>`);
     return `<!doctype html>\n<meta charset="utf-8"><title>Index of ${esc(urlPath)}</title>\n<h1>Index of ${esc(urlPath)}</h1>\n<ul>\n${rows.join('\n')}\n</ul>\n`;   // deck.js reads the links of this page to find decks (scan)
   };
 
@@ -148,23 +177,23 @@ export async function serve(args) {
     if (pathname.includes('\0') || parts.some(p => p.startsWith('.') || p.includes('\\'))) return text(req, res, 404, 'Not found');   // '..', .git, .env …
 
     if (parts[0] === '_deckmd') {                                           // deckmd itself, from the installed package
-      if (parts[1] === 'config.js' && parts.length === 2 && files.length) return send(req, res, 200, TYPES['.js'], makeConfig());
+      if (parts[1] === 'config.js' && parts.length === 2 && files.length) return sendConfig(req, res);
       if (PACKAGE_DIRS.has(parts[1])) return serveFile(req, res, path.join(ROOT, ...parts.slice(1)), packagePublic);
       return text(req, res, 404, 'Not found');
     }
-    if (configUrl && pathname === configUrl) return send(req, res, 200, TYPES['.js'], makeConfig());   // the project's page asks for its own config
+    if (configUrl && pathname === configUrl) return sendConfig(req, res);   // the project's page asks for its own config
     if (files.length && !ownIndex && (pathname === '/' || pathname === '/index.html')) return send(req, res, 200, TYPES['.html'], launcher);
     const target = path.join(root, ...parts);
     resolveInside(target, [realRoot, ...packagePublic], (code, real) => {
       if (code) return text(req, res, code, code === 403 ? 'Forbidden: a symbolic link that leaves the served folder' : 'Not found');
       fs.stat(real, (err, st) => {
         if (err) return text(req, res, 404, 'Not found');
-        const why = notServed(parts, st.isDirectory());
+        const why = notServed(parts, st.isDirectory()) || realWhy(real, st.isDirectory());       // the path asked for, and where it really is
         if (why) return text(req, res, 404, `Not found (not served: ${why})`);
         if (!st.isDirectory()) return sendFile(req, res, real);
         if (!pathname.endsWith('/')) { res.writeHead(301, { location: `${pathname}/` }); return res.end(); }
         const index = path.join(target, 'index.html');
-        if (fs.existsSync(index) && !notServed([...parts, 'index.html'], false)) return serveFile(req, res, index, [realRoot, ...packagePublic]);
+        if (fs.existsSync(index) && !notServed([...parts, 'index.html'], false)) return resolveInside(index, [realRoot, ...packagePublic], (c, r) => (c || realWhy(r, false) ? text(req, res, 404, 'Not found') : sendFile(req, res, r)));
         send(req, res, 200, TYPES['.html'], listing(real, pathname, parts));
       });
     });
