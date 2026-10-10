@@ -34,3 +34,15 @@
   box-shadow: 0 0 0 4px var(--accent), 0 0 18px color-mix(in srgb, var(--accent) 55%, transparent);
   z-index: 1;
 }
+
+/* as=table (```table): the same cells in a <table>; the base table style (css/base.css) draws the rows, these add the colors and the highlight */
+.reveal table.grid-table .cell { --c: var(--muted); }
+.reveal table.grid-table .cell.tint { background: color-mix(in srgb, var(--c) 18%, var(--bg)); color: var(--c); }
+.reveal table.grid-table .cell.is-accent { --c: var(--accent); }
+.reveal table.grid-table .cell.is-cool { --c: var(--cool); }
+.reveal table.grid-table .cell.is-good { --c: var(--good); }
+.reveal table.grid-table .cell.is-bad { --c: var(--bad); }
+.reveal table.grid-table .cell.is-warn { --c: var(--warn, var(--accent)); }
+.reveal table.grid-table .cell.is-muted { --c: var(--muted); }
+.reveal table.grid-table .cell.hl { box-shadow: inset 0 0 0 3px var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--text); font-weight: 700; }
+.reveal table.grid-table .cell.empty::after { content: '\200b'; }            /* an empty cell still has the height of a line */

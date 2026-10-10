@@ -937,6 +937,79 @@ test('pack: examples inside code spans and fenced code blocks are not references
   assert.deepEqual(Object.keys(table), ['/tests/fixtures/assets/img/dot.svg'], 'only the real image is embedded');
 });
 
+// The grid plugin's fence functions run on their own (no browser): DeckMD is stubbed with what the plugin uses
+function gridFences() {
+  const fences = {};
+  const DeckMD = { esc: s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), loadCSS() {}, registerFence: (n, f) => { fences[n] = f; },
+    md: { renderInline: s => s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') } };
+  new Function('DeckMD', fs.readFileSync(path.join(ROOT, 'plugins/grid/grid.js'), 'utf8'))(DeckMD);
+  return fences;
+}
+
+test('grid: data lines fill the cells (Markdown inside), commands add colors; as=table and ```table draw a <table>', () => {
+  const { grid, table } = gridFences();
+  const code = ['| Name | Q1 | Q2 |', '|:-----|---:|:--:|', '| A | 10 | 12 |', 'B3:C3 good', '| B | 7 | **9** |', 'A2 !', 'C1 "x|y"'].join('\n');
+  const t = table(code, { id: 't' });
+  assert.match(t, /^<table class="grid-table"><thead><tr><th class="cell"[^>]*text-align:left[^>]*>Name<\/th>/, 'the first row is the header when there is a |---| line');
+  assert.match(t, /<td class="cell tint is-good" data-id="t-7" style="text-align:right">7<\/td><td class="cell tint is-good" data-id="t-8" style="text-align:center"><strong>9<\/strong><\/td>/, 'B3:C3 is row 3, columns B and C: the header row counts as row 1');
+  assert.match(t, /<td class="cell hl" data-id="t-3" style="text-align:left">A<\/td>/, 'A2 highlighted, column A is left-aligned');
+  assert.match(t, /style="text-align:right">10<\/td>/);
+  assert.match(t, /<th class="cell" data-id="t-2" style="text-align:center" scope="col">x\|y<\/th>/, 'a command label is plain text');
+  assert.equal(grid(code, { id: 't', as: 'table' }), t, 'as=table is the same as ```table');
+  const g = grid(code, { id: 'g' });
+  assert.match(g, /^<div class="grid" style="--cols:3">/);
+  assert.match(g, /<b><strong>9<\/strong><\/b>/, 'Markdown in a data cell');
+  assert.match(g, /is-good/);
+  assert.equal((g.match(/class="cell/g) || []).length, 9, 'a grid of the data: 3 rows x 3 columns, the |---| line is not a row');
+  // no separator line: no header; more commands than data grow the table; an empty one is all empty cells
+  assert.doesNotMatch(table('| a | b |\n| c | d |', {}), /<thead>/);
+  assert.match(table('| a | b |\nB4 end', {}), /data-id="g-7"[^>]*>end<\/td>/);
+  assert.equal((table('', { size: '2x3' }).match(/<td/g) || []).length, 6);
+  assert.throws(() => table('| a | b | c |', { size: '1x2' }), /3|size/);
+  assert.throws(() => grid('A1 x', { as: 'list' }), /as=list/);
+  for (const [bad, why] of [['A0 x', /rows start at 1/], ['A0:B2 x', /rows start at 1/], ['0:1 x', /rows start at 1/]]) assert.throws(() => grid(bad, { size: '2x2' }), why, bad);
+  assert.throws(() => grid('A1 x', { size: 'axb' }), /bad size="axb"/);
+  for (const z of ['0x5', '5x0', '0x0']) assert.throws(() => grid('', { size: z }), /bad size=/, z);
+  assert.match(grid('', { size: '1x1', start: '2' }), /class="grid"/, 'start=2 is allowed, as the message says');
+  // reversed ranges work like the rectangles do (either order); an unclosed quote is an error, not a label with a stray quote
+  const cellsOn = (code, a) => (grid(code, a).match(/cell tint is-good/g) || []).length;
+  assert.equal(cellsOn('C:A good', { size: '2x3' }), 6, 'a reversed column range');
+  assert.equal(cellsOn('A:C good', { size: '2x3' }), 6);
+  assert.equal(cellsOn('2:1 good', { size: '2x3' }), 6, 'a reversed row range');
+  assert.throws(() => grid('B2 "unclosed', { size: '3x3' }), /unclosed quote/);
+  assert.match(grid('B2 "two words" good', { size: '3x3' }), /two words/);
+  assert.throws(() => grid('A1 x', { size: '1000x1000' }), /too many cells/);
+  assert.throws(() => grid('A1 x', { cols: 'abc' }), /bad cols/);
+  assert.throws(() => grid('| a | b | c |', { cols: '2' }), /table has 3 columns but cols=2/);
+  assert.match(grid('| a | b |', { cols: '4' }), /--cols:2/, 'cols is only the default width: the data decides');
+  // comments: // to the end of the line, except inside quotes; a trailing one after a quoted label is still a comment
+  assert.match(grid('B2 "a // b" good', { size: '3x3' }), /<b>a \/\/ b<\/b>/, 'a quoted // is text');
+  assert.match(grid('B2 "http://x.y" good // a note', { size: '3x3' }), /<b>http:\/\/x\.y<\/b>/);
+  assert.doesNotMatch(grid('B2 hi // a note', { size: '3x3' }), /note/, 'an unquoted // starts a comment');
+  assert.throws(() => grid('A1 x', { size: '1x1', start: 'abc' }), /bad start=/);
+  assert.throws(() => grid('3-1 x', { size: '1x5' }), /bad cell number/, 'a reversed NUMBER range stays an error (numbers have an order)');
+  assert.throws(() => grid('1-3> a b c', { size: '1x5' }), /fills in order from ONE cell/);
+  assert.throws(() => grid('A1:B2> a b', { size: '3x3' }), /fills in order from ONE cell/);
+  assert.match(grid('B2> a b', { size: '3x3' }), /<b>b<\/b>/, 'a single cell start still works (Excel address)');
+  // a typo in a range must fail at once, not loop over millions of cells; and a |---| line as wide as the header
+  for (const bad of ['A1:ZZZ999 x', 'A1:A1000000 x', '1-99999999 x', '1:1000000 x']) {
+    const t0 = Date.now();
+    assert.throws(() => grid(bad, { size: '2x3' }), /more than 10000 cells|outside the grid|too many/, bad);
+    assert.ok(Date.now() - t0 < 500, `${bad} fails quickly`);
+  }
+  assert.throws(() => table('| a | b | c |\n|---|---|\n| 1 | 2 | 3 |', {}), /\|---\| line has 2 cells but the header row has 3/);
+  assert.throws(() => grid('A1 x', { size: '1x1', h: 'abc' }), /bad h=/);
+  assert.match(table('| a | b |\n|---|---|\n| c | d |', {}), /<th class="cell" data-id="g-0" scope="col">a<\/th>/, 'header cells say they are column headers');
+  assert.equal(grid(code, { id: 't', as: ' Table ' }), t, 'as is read without case and spaces');
+  assert.equal(grid(code, { id: 't', as: '"table"' }), t, 'and without quotes');
+  assert.equal(table(code, { id: 't', as: 'table' }), t);
+  assert.throws(() => table(code, { as: 'grid' }), /as=grid: this block is a table/, '```table {as=grid} is a conflict, not silently a table');
+  // a color is a theme name or #hex only: anything else is text (so it can't reach the style attribute)
+  const sneaky = grid('A1 red;--x:1 ><b>', { size: '1x1' });
+  assert.doesNotMatch(sneaky, /--c:/, 'no custom color reached the cell');
+  assert.match(sneaky, /<b>red;--x:1 &gt;&lt;b&gt;<\/b>/, 'it is the (escaped) text of the cell');
+});
+
 test('unpack: only user files back to their places; packing again gives the same result', () => {
   // The real-world layout: deckmd/ inside a presentation repository (here a link pointing to this repository)
   const repo = path.join(SANDBOX, 'unpack-repo');

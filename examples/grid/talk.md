@@ -7,9 +7,9 @@ plugins: [grid]
 
 <!-- class: center -->
 
-# Cell diagrams: ```` ```grid ````
+# Cell diagrams and tables: ```` ```grid ````
 
-Arrays, boards, calendars, memory — diagrams made of cells {.teaser}
+Arrays, boards, calendars, memory, tables — diagrams made of cells {.teaser}
 
 Source: [examples/grid/talk.md](https://github.com/qgp9/deckmd/blob/main/examples/grid/talk.md) {.small .muted}
 
@@ -115,6 +115,56 @@ With `start=1`, cell numbers start at 1 too · `F:G` weekend columns · `B2:D2` 
 ```
 
 Top: data in each cell (A continues from 1–3 to 9–10) · bottom: the "next cell" table {.small .muted}
+
+---
+
+## Data: a Markdown table fills the grid
+
+```grid {id=data h=80}
+| Name  | Q1 | Q2     | Q3 |
+| Alpha | 10 | 12     | 9  |
+| Beta  | 7  | **15** | 11 |
+C3 good !
+D2 bad
+1:1 muted
+```
+
+Lines that start with `|` are data (Markdown works inside), the others are the usual commands · `1:1` is the whole first row {.small .muted}
+
+---
+
+## Tables: ```` ```table ````
+
+```table
+| Name  | Q1 | Q2     | Q3     |
+|:------|---:|-------:|-------:|
+| Alpha | 10 | 12     | 9      |
+| Beta  | 7  | **15** | 11     |
+| Gamma | 4  | 6      | `n/a`  |
+
+B3 !
+D4 bad
+A2:A4 accent
+```
+
+Same syntax, drawn as a real `<table>`. A `|---|` line makes the first row the header and sets the alignment (`:---` left, `:---:` center, `---:` right) {.small .muted}
+
+---
+
+## Tables: text wraps, ranges and rows get colors
+
+```grid {as=table}
+| Step | What happens | Why |
+|---|---|---|
+| 1 | The server finds the project by walking up from the current folder, like git does | so you can run it from any subfolder |
+| 2 | Only files inside the project are served | nothing above it is exposed |
+| 3 | A deck outside the project is refused with the command that works | it can't be opened from here |
+
+B2:C2 good
+A4:C4 bad
+```
+
+`grid {as=table}` is the same as `table` · the header is row 1, so `B2:C2` is the first data row {.small .muted}
 
 ---
 
