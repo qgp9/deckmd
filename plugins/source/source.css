@@ -1,4 +1,4 @@
 /* source plugin: the slide below a slide that shows its Markdown */
 .reveal .source-slide { text-align: left; }
 .reveal .source-slide pre { width: 100%; margin: 0; font-size: 0.5em; line-height: 1.45; }
-.reveal .source-slide pre code { max-height: 78vh; padding: 0.9em 1.1em; }
+.reveal .source-slide pre code { max-height: 78vh; padding: 0.9em 1.1em; overflow: auto; }   /* long sources scroll, whatever the theme says */

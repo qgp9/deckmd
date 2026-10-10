@@ -2,7 +2,7 @@
 //   ?source=off          hide them for this viewing (the deck keeps the plugin)
 //   <!-- source: off --> in a slide: no source slide for that one
 // A slide that already is a vertical stack (a <section> inside it, written as raw HTML) is left alone: reveal has only two levels.
-// The first slide has one more page before its source: the front matter (the deck's settings) as written.
+// The first slide that gets a source has one more page before it: the front matter (the deck's settings) as written (if that slide is off, the next one has it).
 // The source is the slide as written: its settings comment and content, without the speaker notes. A deck written in HTML has no Markdown, so nothing is added.
 (() => {
   const off = new URLSearchParams(location.search).get('source') === 'off';
@@ -31,16 +31,15 @@
     return s;
   };
 
-  let first = true;                                              // the first slide also gets the deck's front matter (the --- … --- at the top of the file)
+  let frontMatterPending = true;                                 // the first slide that gets a source also gets the deck's front matter (the --- … --- at the top of the file) first
   DeckMD.afterRender((sec) => {
     arm();
-    const isFirst = first;
-    first = false;
     const text = DeckMD.sources.get(sec);
     if (text == null || sec.dataset.source === 'off') return;
     if (sec.querySelector(':scope > section')) return;          // a vertical stack written inside the slide (raw HTML): reveal has two levels only, so leave it as it is
     const stack = document.createElement('section');          // a vertical stack: the slide, then its source below it
     sec.replaceWith(stack);
-    stack.append(sec, ...(isFirst && DeckMD.frontMatter ? [view(DeckMD.frontMatter, 'front-matter')] : []), view(text));
+    stack.append(sec, ...(frontMatterPending && DeckMD.frontMatter ? [view(DeckMD.frontMatter, 'front-matter')] : []), view(text));
+    frontMatterPending = false;
   });
 })();

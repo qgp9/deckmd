@@ -1065,6 +1065,13 @@ test('source plugin: the first slide has one more page before its source: the fr
   assert.equal(s1.querySelector('.source-slide:not(.front-matter) code').textContent, '# A');
   assert.equal(s2.querySelectorAll('.front-matter').length, 0, 'only the first slide');
   assert.equal(s2.children.length, 2);
+  const late = await sourcePlugin('', '---\ntitle: t\n---');                // the first slide is off: the front matter goes to the next slide that has a source
+  const off1 = late.slide('# off', { 'data-source': 'off' }), next = late.slide('# next'), after = late.slide('# after');
+  [off1, next, after].forEach(late.run);
+  const stacks = late.document.querySelectorAll('.slides > section');
+  assert.equal(late.document.querySelectorAll('.front-matter').length, 1, 'exactly once, not lost');
+  assert.ok(stacks[1].querySelector('.front-matter'), 'on the next slide that has a source');
+  assert.equal(stacks[2].querySelectorAll('.front-matter').length, 0);
   const none = await sourcePlugin('', '');                                   // no front matter: nothing extra
   none.run(none.slide('# A'));
   assert.equal(none.document.querySelectorAll('.front-matter').length, 0);

@@ -81,7 +81,7 @@ Shows, under each slide, the Markdown that made it: press **↓** (the slide bel
 plugins: [source]
 ```
 
-- The first slide has two pages under it: the **front matter** (the `--- … ---` settings at the top of the file), then its source.
+- The first slide that has a source has two pages under it: the **front matter** (the `--- … ---` settings at the top of the file), then its source. (If the first slide is `source: off`, the next one carries the front matter.)
 - The source slide has the slide as written: its settings comment (`<!-- class: center -->`) and content, **without the speaker notes**. It is highlighted as Markdown.
 - Off for one slide: `<!-- source: off -->` in that slide (it can go with other settings: `<!-- class: center; source: off -->`). Off for a viewing: add `?source=off` to the address. Off for the whole deck: don't list the plugin; then no code of it is loaded.
 - Slide numbers don't change (a source slide is a vertical slide: ↓, not →). Moving sideways always starts at the top slide of the next stack, never at a source you looked at last; going to a source on purpose (↓, a link such as `#/3/1`, the back button) works.
