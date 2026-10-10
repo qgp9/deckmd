@@ -1,6 +1,6 @@
 {
   "name": "deckmd",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "reveal.js slide decks from a single Markdown file. View them in the browser with no build step, then pack the deck into one HTML file.",
   "keywords": [
     "markdown",
