@@ -26,7 +26,7 @@ B2:D2    "two words" bad      // Excel-style rectangle. Quote text containing sp
 
 | Cell spec | Meaning |
 |---|---|
-| `5`, `1-3`, `2,5,6` | Cell numbers. Left → right, top → bottom, from 0 (from 1 with `start=1`). Spaces after commas are allowed |
+| `5`, `1-3`, `2,5,6` | Cell numbers. Left → right, top → bottom, from 0 (from 1 with `start=1`). Spaces after commas are allowed. A range goes up (`3-1` is an error) |
 | `B2`, `B2:C5` | Excel-style cell or rectangle (A1 is the first cell, always 1-based) |
 | `3:3`, `2:4` | Whole rows (needs `size`) |
 | `C:C`, `B:D` | Whole columns (needs `size`) |

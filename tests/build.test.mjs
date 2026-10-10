@@ -978,6 +978,8 @@ test('grid: data lines fill the cells (Markdown inside), commands add colors; as
   assert.match(grid('B2 "two words" good', { size: '3x3' }), /two words/);
   assert.throws(() => grid('A1 x', { size: '1000x1000' }), /too many cells/);
   assert.throws(() => grid('A1 x', { cols: 'abc' }), /bad cols/);
+  assert.throws(() => grid('A1 x', { size: '1x1', start: 'abc' }), /bad start=/);
+  assert.throws(() => grid('3-1 x', { size: '1x5' }), /bad cell number/, 'a reversed NUMBER range stays an error (numbers have an order)');
   assert.throws(() => grid('1-3> a b c', { size: '1x5' }), /fills in order from ONE cell/);
   assert.throws(() => grid('A1:B2> a b', { size: '3x3' }), /fills in order from ONE cell/);
   assert.match(grid('B2> a b', { size: '3x3' }), /<b>b<\/b>/, 'a single cell start still works (Excel address)');
