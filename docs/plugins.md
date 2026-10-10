@@ -70,7 +70,7 @@ A2:A3 accent
 - `` ```grid `` draws `<div>` cells. `` ```grid {as=table} `` draws a real `<table>`, and `` ```table `` is the same thing: text wraps, columns size to their content, and it copies, prints and reads out like a table. Colors, `!`, `id` and `data-id` (auto-animate) work in both.
 - The first data row is the **header** (`<thead>`) when the second line is a `|---|` line. That line also sets the alignment: `:---` left, `:---:` center, `---:` right. It is not a row; cell addresses count the header as row 1.
 - Text typed in a command line (`A1 hello`) is plain text; text from the data lines is Markdown.
-- `size` can be bigger than the data (empty cells) but not smaller. `index`, `head`, `start` and `h` are for the `<div>` grid; a table ignores them.
+- `size` can be bigger than the data (empty cells) but not smaller. `index`, `head` and `h` are for the `<div>` grid; a table ignores them. (`start` still sets where the plain cell numbers `5`, `1-3` begin; Excel-style addresses are not affected.)
 - A table that is already written as plain Markdown (or `<table>`) is not converted. Write it in the fence, or color a cell of it with `{.y}` `{.n}` `{.m}` at the end of the cell text.
 
 ## Writing a plugin

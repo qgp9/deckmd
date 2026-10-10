@@ -967,6 +967,11 @@ test('grid: data lines fill the cells (Markdown inside), commands add colors; as
   assert.equal((table('', { size: '2x3' }).match(/<td/g) || []).length, 6);
   assert.throws(() => table('| a | b | c |', { size: '1x2' }), /3|size/);
   assert.throws(() => grid('A1 x', { as: 'list' }), /as=list/);
+  assert.equal(grid(code, { id: 't', as: ' Table ' }), t, 'as is read without case and spaces');
+  // a color is a theme name or #hex only: anything else is text (so it can't reach the style attribute)
+  const sneaky = grid('A1 red;--x:1 "><b>', { size: '1x1' });
+  assert.doesNotMatch(sneaky, /--c:/, 'no custom color reached the cell');
+  assert.match(sneaky, /<b>red;--x:1 &gt;&lt;b&gt;<\/b>/, 'it is the (escaped) text of the cell');
 });
 
 test('unpack: only user files back to their places; packing again gives the same result', () => {

@@ -146,7 +146,7 @@
     const p = parse(code, a);
     const { rows, cols, start, cells } = p;
     const id = a.id || 'g', head = 'head' in a, index = 'index' in a;
-    const kind = as || a.as || 'grid';
+    const kind = as || String(a.as ?? 'grid').trim().toLowerCase();
     if (kind === 'table') return renderTable(p, id);
     if (kind !== 'grid') throw new Error(`as=${kind}: use as=table, or leave it out for a grid`);
     const style = [`--cols:${cols}`, a.h ? `--grid-h:${+a.h}px` : ''].filter(Boolean).join(';');
