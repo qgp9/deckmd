@@ -596,6 +596,10 @@ test('review fixes: data-src is not a launcher; hidden or linked-out decks are r
   const none = build(['serve', '--port', '0'], path.join(dir, 'proj'));
   assert.ok(!none.ok);
   assert.match(none.err, /no deckmd project here/);
+  fs.writeFileSync(path.join(dir, 'proj/index.html'), '<script src="deckmd/js/boot.js" data-type="text/markdown" data-id="deck-meta"></script>\n');   // data-* attributes are not a deck inside
+  assert.ok(build(['serve', '--help'], dir).ok);
+  const annotated = spawnSync(process.execPath, ['--input-type=module', '-e', `import { isLauncher } from ${JSON.stringify(new URL('../tools/project.mjs', import.meta.url).href)}; process.exit(isLauncher(${JSON.stringify('<script src="deckmd/js/boot.js" data-type="text/markdown" data-id="deck-meta"></script>')}) ? 0 : 1)`]);
+  assert.equal(annotated.status, 0, 'a launcher with data-type / data-id is still a launcher');
   fs.writeFileSync(path.join(dir, 'proj/index.html'), '<script src="deckmd/js/boot.js"></script>\n');
   // never-served places are refused as decks, with or without a project
   for (const [cwd, file] of [[path.join(dir, 'proj'), '.hid/h.md'], [path.join(dir, 'proj'), 'node_modules/m/n.md']]) {
