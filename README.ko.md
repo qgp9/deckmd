@@ -39,7 +39,7 @@ reveal.js 위에 마크다운 문법 몇 가지를 더했다.
 - `Note:` 아래는 발표자 노트, `<!-- @@ 메모 -->` 는 검토 메모 (`?draft`), `?core` 로 짧은 판
 - reveal.js 기능(단계별 등장, 배경, 전환, auto-animate, 코드 줄 강조)을 마크다운에서 그대로
 - 장 구분이 없는 마크다운(README 등)은 제목으로 잘라 덱으로
-- 플러그인으로 문법 더하기 (내장: 칸 그림과 표 ```` ```grid ````)
+- 플러그인으로 문법 더하기 (내장: 칸 그림과 표 ```` ```grid ````, 슬라이드 아래 소스 보기)
 
 → [docs/writing.md](docs/writing.md), 덱으로 된 설명서 [`examples/syntax/talk.md`](examples/syntax/talk.md)
 

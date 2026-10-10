@@ -44,6 +44,7 @@
     md: null,          // markdown-it instance (plugins may call md.use(...))
     fences: {},        // code block language → (code, attrs, token) => HTML
     hooks: [],         // (section, deck) => void — after a slide is attached to the DOM
+    sources: new WeakMap(),   // section → the Markdown it was made from (slide settings comment + content, without the notes). Only for slides made from Markdown
     runs: {},          // name → (section) => cleanup function | void — when a slide with the slide setting run: name is shown
     srcUrl,
     esc,
@@ -309,6 +310,7 @@
     const [content, notes] = splitNotes(rest);
     const section = document.createElement('section');
     applyAttrs(section, attrs);
+    DeckMD.sources.set(section, (src.slice(0, src.length - rest.length) + content).trim());
     section.innerHTML = md.render(content);
     if (notes && notes.trim()) {
       const aside = document.createElement('aside');

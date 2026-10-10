@@ -60,6 +60,12 @@ const CASES = [
   { group: 'syntax', name: '?core (defaultTier: core = slides without a tier stay)', url: `${R}?src=tests/fixtures/tiers/talk.md&core`, slides: 4 },
   { group: 'syntax', name: '?core + defaultTier=none (core slides only)', url: `${R}?src=tests/fixtures/tiers/talk.md&core&defaultTier=none`, slides: 2 },
   { group: 'syntax', name: '?core with no core slides shows all', url: `${R}?src=examples/grid/talk.md&core&defaultTier=none`, slides: 11 },
+  { group: 'source', name: 'plugins: [source] → a source slide under each slide (not under <!-- source: off -->; notes and the | tags stay text)', url: `${R}?src=tests/fixtures/source/talk.md`, slides: 3, notes: 1, check: d => {
+      const src = [...d.querySelectorAll('.slides > section > section.source-slide code')].map(c => c.textContent);
+      return (src.length === 2 && src[0].includes('# One') && src[0].includes('<b>tags</b>') && !src[0].includes('speaker note') && src[1].includes('tier: core') && !d.querySelector('.source-slide b'))
+        || `source slides: ${JSON.stringify(src)}`; } },
+  { group: 'source', name: '?source=off hides them (the plugin stays loaded)', url: `${R}?src=tests/fixtures/source/talk.md&source=off`, slides: 3, check: d => d.querySelectorAll('.slides .source-slide').length === 0 || 'a source slide is there' },
+  { group: 'source', name: '?core: a cut slide takes its source with it', url: `${R}?src=tests/fixtures/source/talk.md&core&defaultTier=none`, slides: 1, check: d => d.querySelectorAll('.slides .source-slide').length === 1 || 'source slides after ?core' },
   { group: 'errors', name: 'front matter YAML error', url: `${R}?src=tests/fixtures/bad-yaml/talk.md`, text: ["Can't open the deck", 'front matter (YAML)'] },
   // ?src must stay under the folder of the page (the launcher page in tests/fixtures/under/)
   { group: '?src', name: 'a path under the page folder opens', url: `${R}tests/fixtures/under/index.html?src=talk.md`, slides: 1 },

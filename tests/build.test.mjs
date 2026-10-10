@@ -1010,6 +1010,67 @@ test('grid: data lines fill the cells (Markdown inside), commands add colors; as
   assert.match(sneaky, /<b>red;--x:1 &gt;&lt;b&gt;<\/b>/, 'it is the (escaped) text of the cell');
 });
 
+// The source plugin on its own: a DOM (jsdom) and a stub of DeckMD / Reveal, no browser
+async function sourcePlugin(query = '') {
+  const { JSDOM } = (await import('jsdom')).default;
+  const dom = new JSDOM('<div class="slides"></div>', { url: `http://x.test/${query}` });
+  const { document } = dom.window;
+  const hooks = [], handlers = [], slid = [];
+  const Reveal = { on: (type, fn) => handlers.push([type, fn]), slide: (h, v) => slid.push([h, v]) };
+  const DeckMD = { sources: new WeakMap(), loadCSS() {}, afterRender: fn => hooks.push(fn) };
+  new Function('DeckMD', 'document', 'location', 'window', 'Reveal', fs.readFileSync(path.join(ROOT, 'plugins/source/source.js'), 'utf8'))(DeckMD, document, dom.window.location, { Reveal }, Reveal);
+  const slide = (text, attrs = {}) => {
+    const sec = document.createElement('section');
+    Object.entries(attrs).forEach(([k, v]) => sec.setAttribute(k, v));
+    document.querySelector('.slides').appendChild(sec);
+    if (text != null) DeckMD.sources.set(sec, text);
+    return sec;
+  };
+  const run = sec => hooks.forEach(h => h(sec, DeckMD));
+  return { document, slide, run, handlers, slid, hooks };
+}
+
+test('source plugin: a stack with the slide and a source slide under it; escaped text; off per slide, by ?source=off, and for HTML decks', async () => {
+  const p = await sourcePlugin();
+  const a = p.slide('<!-- class: center -->\n# A <b>x</b>');
+  const off = p.slide('# no', { 'data-source': 'off' });
+  const html = p.slide(null);                                             // a deck written in HTML: no Markdown to show
+  [a, off, html].forEach(p.run);
+  const stack = p.document.querySelector('.slides > section');
+  assert.equal(stack.children.length, 2);
+  assert.equal(stack.firstElementChild, a, 'the slide itself comes first');
+  const code = stack.querySelector('.source-slide pre code.language-markdown');
+  assert.equal(code.textContent, '<!-- class: center -->\n# A <b>x</b>');
+  assert.equal(code.querySelector('b'), null, 'tags are text, not elements');
+  assert.equal(p.document.querySelectorAll('.source-slide').length, 1, 'not under data-source=off, not under a slide without Markdown');
+  assert.equal(p.document.querySelectorAll('.slides > section').length, 3);
+  const q = await sourcePlugin('?source=off');
+  q.run(q.slide('# x'));
+  assert.equal(q.document.querySelectorAll('.source-slide').length, 0, '?source=off');
+});
+
+test('source plugin: moving to another stack starts at its top slide; a link or ↓ into a source still works', async () => {
+  const p = await sourcePlugin();
+  p.run(p.slide('# a'));
+  const [[type, onSlide]] = p.handlers;
+  assert.equal(type, 'slidechanged');
+  assert.equal(p.handlers.length, 1, 'registered once, however many slides');
+  const src = p.document.querySelector('.source-slide'), top = p.document.querySelector('.slides section section');
+  onSlide({ currentSlide: src, indexh: 2, indexv: 1 });                  // the first event (opened on #/2/1): stay
+  onSlide({ currentSlide: top, indexh: 2, indexv: 0 });
+  onSlide({ currentSlide: src, indexh: 2, indexv: 1 });                  // ↓ in the same stack: stay
+  assert.deepEqual(p.slid, []);
+  onSlide({ currentSlide: src, indexh: 3, indexv: 1 });                  // ← or → landed on a source because reveal remembers it: back to the top
+  assert.deepEqual(p.slid, [[3, 0]]);
+});
+
+test('source plugin: packs with the deck (the plugin and its CSS go into the bundle)', () => {
+  const { html } = make('tests/fixtures/source/talk.md', 'source.offline.html', '--offline');
+  const k = keys(html);
+  assert.ok(k.includes('plugins/source/source.js') && k.includes('plugins/source/source.css'), k.join(' '));
+  assert.deepEqual(external(html), []);
+});
+
 test('unpack: only user files back to their places; packing again gives the same result', () => {
   // The real-world layout: deckmd/ inside a presentation repository (here a link pointing to this repository)
   const repo = path.join(SANDBOX, 'unpack-repo');

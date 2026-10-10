@@ -2,14 +2,16 @@
 title: grid plugin (example)
 size: 1920x1080
 theme: solarized
-plugins: [grid]
+plugins: [grid, source]
 ---
 
-<!-- class: center -->
+<!-- class: center; source: off -->
 
 # Cell diagrams and tables: ```` ```grid ````
 
 Arrays, boards, calendars, memory, tables — diagrams made of cells {.teaser}
+
+Press ↓ under a slide to see the Markdown it was made from {.small .muted}
 
 Source: [examples/grid/talk.md](https://github.com/qgp9/deckmd/blob/main/examples/grid/talk.md) {.small .muted}
 
