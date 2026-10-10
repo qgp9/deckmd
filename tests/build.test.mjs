@@ -580,6 +580,49 @@ test('serve: in a project the whole tree is the site, from any folder in it; a d
   assert.ok(!build(['serve', 'slides/a/deck.md', '../other/x.md', '--port', '0'], work).ok, 'one deck outside is enough to refuse');
 });
 
+test('review fixes: data-src is not a launcher; hidden or linked-out decks are refused; a linked deck is scanned; retry commands are quoted', async (t) => {
+  const dir = path.join(SANDBOX, 'tree-review');
+  fs.mkdirSync(path.join(dir, 'proj/slides/ok'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'proj/.hid'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'proj/node_modules/m'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'my other'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'proj/slides/ok/deck.md'), '# ok\n');
+  fs.writeFileSync(path.join(dir, 'proj/.hid/h.md'), '# h\n');
+  fs.writeFileSync(path.join(dir, 'proj/node_modules/m/n.md'), '# n\n');
+  fs.writeFileSync(path.join(dir, 'my other/x.md'), '# x\n');
+  fs.writeFileSync(path.join(dir, 'secret.txt'), 'TOP SECRET');
+  // data-src="boot.js" does not load deckmd: not a project
+  fs.writeFileSync(path.join(dir, 'proj/index.html'), '<script data-src="deckmd/js/boot.js"></script>\n');
+  const none = build(['serve', '--port', '0'], path.join(dir, 'proj'));
+  assert.ok(!none.ok);
+  assert.match(none.err, /no deckmd project here/);
+  fs.writeFileSync(path.join(dir, 'proj/index.html'), '<script src="deckmd/js/boot.js"></script>\n');
+  // never-served places are refused as decks, with or without a project
+  for (const [cwd, file] of [[path.join(dir, 'proj'), '.hid/h.md'], [path.join(dir, 'proj'), 'node_modules/m/n.md']]) {
+    const r = build(['serve', file, '--port', '0'], cwd);
+    assert.ok(!r.ok, file);
+    assert.match(r.err, /dot folder or node_modules/, file);
+  }
+  fs.rmSync(path.join(dir, 'proj/index.html'));
+  const r2 = build(['serve', '.hid/h.md', '--port', '0'], path.join(dir, 'proj'));
+  assert.ok(!r2.ok && /dot folder or node_modules/.test(r2.err), 'without a project');
+  // the retry command quotes what has a space
+  const q = build(['serve', '../my other/x.md', '--port', '0'], path.join(dir, 'proj'));
+  assert.match(q.err, /cd '\.\.\/my other' && npx deckmd serve x\.md/);
+  if (process.platform === 'win32') return t.skip('symlinks need privileges on Windows');
+  fs.writeFileSync(path.join(dir, 'proj/index.html'), '<script src="deckmd/js/boot.js"></script>\n');
+  fs.symlinkSync('../../secret.txt', path.join(dir, 'proj/slides/leak.md'));               // a .md that is really a file outside the project
+  fs.symlinkSync('ok/deck.md', path.join(dir, 'proj/slides/linked.md'));                    // a link that stays inside
+  const leak = build(['serve', 'slides/leak.md', '--port', '0'], path.join(dir, 'proj'));
+  assert.ok(!leak.ok);
+  assert.match(leak.err, /symbolic link that leaves the deckmd project/);
+  await withServe(['slides'], path.join(dir, 'proj'), async (base) => {                     // a scan follows the safe link and drops the other
+    const cfg = (await get(`${base}deck.config.js`)).text;
+    assert.match(cfg, /"slides\/linked\.md"/);
+    assert.doesNotMatch(cfg, /leak\.md/);
+  });
+});
+
 const withHost = (base, p, hostHeader) => new Promise((ok, no) => {                    // a request with a chosen Host header
   const u = new URL(base);
   http.get({ host: u.hostname, port: u.port, path: p, headers: { host: hostHeader } }, r => { r.resume(); ok(r.statusCode); }).on('error', no);
