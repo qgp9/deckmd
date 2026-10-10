@@ -636,6 +636,107 @@ test('serve: a deck.config.js that is a link out of the folder is refused on bot
   await withServe(['slides/a/deck.md'], dir, async (base) => assert.equal((await get(`${base}deck.config.js`)).status, 403));
 });
 
+const rawReq = (base, p, { headers = {}, method = 'GET' } = {}) => new Promise((ok, no) => {      // status, headers and body, no URL cleaning and no redirects followed
+  const u = new URL(base);
+  http.request({ host: u.hostname, port: u.port, path: p, method, headers }, (r) => {
+    const chunks = [];
+    r.on('data', c => chunks.push(c));
+    r.on('end', () => ok({ status: r.statusCode, headers: r.headers, body: Buffer.concat(chunks) }));
+  }).on('error', no).end();
+});
+
+test('serve: a folder without its trailing slash redirects to an encoded path, and no request can end the server', async (t) => {
+  const dir = path.join(OUT, 'serve-redirect');
+  const names = ['\ubc1c\ud45c', 'C#', 'a b', '100%', 'slides', 'q?x'];                                   // non-ASCII, #, space, %, ?
+  for (const n of names) { fs.mkdirSync(path.join(dir, n), { recursive: true }); fs.writeFileSync(path.join(dir, n, 'x.md'), '# x\n'); }
+  fs.writeFileSync(path.join(dir, 'index.html'), '<script src="deckmd/js/boot.js"></script>\n');
+  const locked = path.join(dir, 'locked');
+  const canLock = process.platform !== 'win32' && process.getuid?.() !== 0;                                 // root can read anything
+  fs.mkdirSync(locked, { recursive: true });
+  fs.writeFileSync(path.join(locked, 'y.md'), '# y\n');
+  if (canLock) fs.chmodSync(locked, 0o000);
+  try {
+    await withServe([], dir, async (base) => {
+      for (const n of names) {
+        const enc = encodeURIComponent(n);
+        const r = await rawReq(base, `/${enc}`);
+        assert.equal(r.status, 301, n);
+        assert.equal(r.headers.location, `/${enc}/`, `${n}: the redirect keeps the path as it was sent`);
+        const list = await rawReq(base, `/${enc}/`);
+        assert.equal(list.status, 200, n);
+        assert.match(list.body.toString(), /href="x\.md"/, n);
+      }
+      const slashes = await rawReq(base, '/%2f%2fslides');                                              // not a scheme-relative address
+      assert.equal(slashes.status, 301);
+      assert.ok(/^\/[^/]/.test(slashes.headers.location), `one leading slash: ${slashes.headers.location}`);
+      if (canLock) {
+        const r = await rawReq(base, '/locked/');
+        assert.equal(r.status, 403, 'a folder that can not be read is answered, not fatal');
+        assert.match(r.body.toString(), /can't be read/);
+      }
+      assert.equal((await rawReq(base, '/index.html')).status, 200, 'the server is still up');
+    });
+  } finally { if (canLock) fs.chmodSync(locked, 0o755); }
+});
+
+test('serve x.md without a project: a deck whose folder or file is reached through a link inside the folder is served', async (t) => {
+  if (process.platform === 'win32') return t.skip('symlinks need privileges on Windows');
+  const dir = path.join(OUT, 'serve-linked-deck');
+  for (const d of ['real/a', 'slides/b', 'other']) fs.mkdirSync(path.join(dir, d), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'real/a/deck.md'), '# A\n');
+  fs.writeFileSync(path.join(dir, 'real/b.md'), '# B\n');
+  fs.writeFileSync(path.join(dir, 'other/secret.txt'), 'secret');
+  fs.symlinkSync('../real/a', path.join(dir, 'slides/a'));                                       // the deck's folder is a link
+  fs.symlinkSync('../../real/b.md', path.join(dir, 'slides/b/deck.md'));                         // the deck itself is a link
+  await withServe(['slides/a/deck.md'], dir, async (base) => {
+    assert.equal((await get(`${base}slides/a/deck.md`)).text, '# A\n');
+    assert.equal((await get(`${base}other/secret.txt`)).status, 404, 'the rest is still hidden');
+  });
+  await withServe(['slides/b/deck.md'], dir, async (base) => assert.equal((await get(`${base}slides/b/deck.md`)).text, '# B\n'));
+});
+
+test('serve: files are streamed and answer Range requests (video seeking, Safari)', async () => {
+  const dir = path.join(OUT, 'serve-range');
+  fs.mkdirSync(dir, { recursive: true });
+  const body = Buffer.alloc(300 * 1024);                                                              // bigger than one stream chunk
+  for (let i = 0; i < body.length; i++) body[i] = i % 251;
+  fs.writeFileSync(path.join(dir, 'clip.mp4'), body);
+  fs.writeFileSync(path.join(dir, 'empty.txt'), '');
+  fs.writeFileSync(path.join(dir, 'index.html'), '<script src="deckmd/js/boot.js"></script>\n');
+  await withServe([], dir, async (base) => {
+    const whole = await rawReq(base, '/clip.mp4');
+    assert.equal(whole.status, 200);
+    assert.equal(whole.headers['accept-ranges'], 'bytes');
+    assert.equal(whole.headers['content-length'], String(body.length));
+    assert.ok(whole.body.equals(body), 'the whole file, byte for byte');
+    const n = body.length;
+    for (const [range, from, to] of [['bytes=0-3', 0, 3], ['bytes=10-', 10, n - 1], ['bytes=-100', n - 100, n - 1], ['bytes=1000-999999999', 1000, n - 1], [`bytes=${n - 1}-${n - 1}`, n - 1, n - 1]]) {
+      const r = await rawReq(base, '/clip.mp4', { headers: { range } });
+      assert.equal(r.status, 206, range);
+      assert.equal(r.headers['content-range'], `bytes ${from}-${to}/${n}`, range);
+      assert.equal(r.headers['content-length'], String(to - from + 1), range);
+      assert.ok(r.body.equals(body.subarray(from, to + 1)), `${range}: the right bytes`);
+    }
+    for (const range of [`bytes=${n}-`, 'bytes=999999999-', 'bytes=-0', 'bytes=5-2']) {
+      const r = await rawReq(base, '/clip.mp4', { headers: { range } });
+      assert.equal(r.status, 416, range);
+      assert.equal(r.headers['content-range'], `bytes */${n}`, range);
+    }
+    for (const range of ['bytes=abc', 'bytes=0-1,3-4', 'items=0-1', 'bytes=-']) {                    // not one valid range: ignored, the whole file
+      const r = await rawReq(base, '/clip.mp4', { headers: { range } });
+      assert.equal(r.status, 200, range);
+      assert.equal(r.body.length, n, range);
+    }
+    const head = await rawReq(base, '/clip.mp4', { method: 'HEAD' });
+    assert.equal(head.status, 200);
+    assert.equal(head.headers['content-length'], String(n));
+    assert.equal(head.body.length, 0);
+    const empty = await rawReq(base, '/empty.txt', { headers: { range: 'bytes=0-' } });
+    assert.equal(empty.status, 416, 'an empty file has no range to give');
+    assert.equal((await rawReq(base, '/empty.txt')).headers['content-length'], '0');
+  });
+});
+
 test('serve --host 0.0.0.0 warns that the folder is open to the network (and the default does not)', async () => {
   const dir = path.join(OUT, 'serve-warn');
   fs.mkdirSync(dir, { recursive: true });
