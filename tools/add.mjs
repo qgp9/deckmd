@@ -1,13 +1,15 @@
-// deckmd add — add a deck to a --multi repository (called by build.mjs: npx deckmd add)
+// deckmd add — add a deck (called by build.mjs: npx deckmd add)
 //
 //   npx deckmd add <name> [title]
 //
-//   Creates slides/<name>/deck.md from the starter deck (templates/deck.md) with the title and today's date filled in.
-//   Run it at the top of a --multi repository (npx deckmd init --multi). The title defaults to the name ("my-talk" → "My talk").
-//   The deck shows up in the deck list on the next reload. Never overwrites.
+//   Makes a deck from the starter deck (templates/deck.md) with the title and today's date filled in. The title defaults to the name ("my-talk" → "My talk").
+//   In a deckmd project (found from the current folder upwards, like git does) it creates slides/<name>/deck.md at the top of the project, whatever
+//   folder of it you are in. Outside a project it creates just ./<name>.md here. Never overwrites.
+//   npx deckmd -C path add ...   run it as if you were in that folder
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { findProject } from './project.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
@@ -20,13 +22,11 @@ export function add(args) {
   for (const a of args) if (a.startsWith('-')) die(`unknown option: ${a}  (deckmd add --help)`);
   const [name, ...words] = args;
   if (!name) die(`Which folder name? npx deckmd add <name> [title]  (deckmd add --help)`);
-  if (/[\\/:*?"<>|]/.test(name) || name.startsWith('.')) die(`<name> is a folder name under slides/: no / \\ : * ? " < > |, and it can't start with a dot (got "${name}")`);
+  if (/[\\/:*?"<>|]/.test(name) || name.startsWith('.')) die(`<name> is a folder or file name: no / \\ : * ? " < > |, and it can't start with a dot (got "${name}")`);
 
-  const top = process.cwd();
-  if (!fs.existsSync(path.join(top, 'slides')) && !fs.existsSync(path.join(top, 'deck.config.js')))
-    die(`This doesn't look like a --multi deckmd repository (no slides/ or deck.config.js here).\nRun it at the top of one, or create one with: npx deckmd init --multi`);
-  const rel = `slides/${name}/deck.md`;
-  const file = path.join(top, rel);
+  const project = findProject(process.cwd());
+  const file = project ? path.join(project.root, 'slides', name, 'deck.md') : path.resolve(`${name}.md`);
+  const rel = path.relative(process.cwd(), file) || path.basename(file);
   if (fs.existsSync(file)) die(`already exists: ${rel}`);
 
   const title = words.join(' ').trim() || name.replace(/[-_]+/g, ' ').replace(/^\p{L}/u, c => c.toUpperCase());
@@ -37,6 +37,7 @@ export function add(args) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, text);
 
-  console.log(`created ${rel}   (title: ${JSON.stringify(title)})
-It's in the deck list on the next reload, or open index.html?src=${rel}`);
+  console.log(project
+    ? `created ${rel}   (title: ${JSON.stringify(title)})${project.up ? `\n  in the project at ${project.root}` : ''}\nIt's in the deck list on the next reload, or: npx deckmd serve ${rel}`
+    : `created ${rel}   (title: ${JSON.stringify(title)})\nNo deckmd project here, so it is a deck on its own.  npx deckmd serve ${rel}   (npx deckmd init starts a project)`);
 }

@@ -73,7 +73,7 @@ npx deckmd init                  # index.html + slides.md (deckmd 는 CDN 에서
 npx deckmd serve                 # 작은 웹 서버. http://localhost:8000/ 을 열고 slides.md 를 고친다
 ```
 
-프로젝트 없이 마크다운 파일만 보려면 `npx deckmd serve my-deck.md` (그 덱 하나), `npx deckmd serve a.md b.md` (덱 목록). 프로젝트 안에서 쓰면 그 프로젝트의 `index.html` 과 `deck.config.js` 를 따르고 보여 줄 덱만 바꾸므로 테마도 그대로 적용된다. `--port`, `--open`, `--host 0.0.0.0` (같은 네트워크의 폰에서 열기)도 있다.
+프로젝트 없이 마크다운 파일만 보려면 `npx deckmd serve my-deck.md` (그 덱 하나), `npx deckmd serve a.md b.md` (덱 목록). 프로젝트 안에서 쓰면 그 프로젝트의 `index.html` 과 `deck.config.js` 를 따르고 보여 줄 덱만 바꾸므로 테마도 그대로 적용된다. 폴더를 주면(`npx deckmd serve some/folder`) 그 안의 모든 덱을 보여 준다. 프로젝트는 git 이 저장소를 찾듯 현재 폴더와 그 위 폴더에서 찾고, `npx deckmd -C 경로 …` 로 다른 폴더에서 시작할 수 있다. `--port`, `--open`, `--host 0.0.0.0` (같은 네트워크의 폰에서 열기)도 있다.
 
 끝나면 덱을 보다가 **E** → "오프라인", 또는 `npx deckmd slides.md`. 결과 파일을 덱 옆에 커밋해 두면 그것이 얼린 판이다.
 
@@ -86,7 +86,7 @@ npx deckmd serve                 # 작은 웹 서버. http://localhost:8000/ 을
 
 `init` 은 덮어쓰지 않는다. 파일이 하나라도 있으면 (`--repo` 는 `deckmd/` 도) 아무것도 바꾸지 않고 멈춘다. 손으로 하거나 git submodule 로 하려면 [docs/usage.md](docs/usage.md) (영문).
 
-`--multi` 저장소에서는 `npx deckmd add my-talk "발표 제목"` 으로 덱을 더한다: 견본에서 `slides/my-talk/deck.md` 를 만들고 제목과 날짜를 채우며, 덱 목록에 바로 뜬다.
+프로젝트 안에서는(어느 폴더에서든) `npx deckmd add my-talk "발표 제목"` 으로 덱을 더한다: 견본에서 `slides/my-talk/deck.md` 를 만들고 제목과 날짜를 채우며, 덱 목록에 바로 뜬다. 프로젝트 밖에서는 `./my-talk.md` 를 만든다.
 
 인터넷 없이 쓰는 법, 서버 없이 여는 법, 주소 옵션, 설정은 [docs/usage.md](docs/usage.md).
 

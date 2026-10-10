@@ -8,10 +8,13 @@
 //   How the decks are laid out:
 //   --single  (default) one deck: index.html and slides.md (opening index.html shows it; no config needed)
 //   --multi   a talks repository, one folder per deck: index.html, deck.config.js and slides/first-deck/deck.md (opening index.html lists the decks)
-//   Creates the files in dir (default: the current folder). Nothing is overwritten: if any of them exists (with --repo also the deckmd/ folder), it stops and changes nothing.
+//   Creates the files in dir (default: the current folder). Inside a deckmd project (found upwards like git does) it stops: a project in a project
+//   is usually a mistake (npx deckmd add makes a deck there); --force makes one anyway.   npx deckmd -C path init ...  starts in that folder.
+//   Nothing is overwritten: if any of the files exists (with --repo also the deckmd/ folder), it stops and changes nothing.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { findProject, nearestExisting } from './project.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { version } = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
@@ -27,7 +30,7 @@ const SKIP = new Set(['.DS_Store', 'node_modules', 'vendor', 'dist']);
 export function init(args) {
   const die = (msg) => { console.error(msg); process.exit(1); };
   if (args.includes('--help') || args.includes('-h')) { console.log(USAGE); return; }
-  for (const a of args) if (a.startsWith('-') && ![...SOURCES, ...LAYOUTS].map(m => `--${m}`).includes(a)) die(`unknown option: ${a}  (deckmd init --help)`);
+  for (const a of args) if (a.startsWith('-') && ![...SOURCES, ...LAYOUTS, 'force'].map(m => `--${m}`).includes(a)) die(`unknown option: ${a}  (deckmd init --help)`);
   const pick = (names, label) => {
     const given = names.filter(m => args.includes(`--${m}`));
     if (given.length > 1) die(`only one of ${label}`);
@@ -38,6 +41,10 @@ export function init(args) {
   const dirs = args.filter(a => !a.startsWith('-'));
   if (dirs.length > 1) die(`only one folder: ${dirs.join(', ')}`);
   const target = path.resolve(dirs[0] || '.');
+
+  const inside = findProject(nearestExisting(target));
+  const here = fs.existsSync(target) ? fs.realpathSync(target) : null;                      // a project right here is the "already exists" case below
+  if (inside && inside.root !== here && !args.includes('--force')) die(`${target} is inside the deckmd project at ${inside.root}.\n  npx deckmd add <name>   adds a deck to it\n  --force                 start a project here anyway`);
 
   const deck = layout === 'single' ? 'slides.md' : 'slides/first-deck/deck.md';
   const files = [

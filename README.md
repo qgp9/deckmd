@@ -73,7 +73,7 @@ npx deckmd init                  # index.html + slides.md (deckmd itself comes f
 npx deckmd serve                 # a small web server; open http://localhost:8000/ and edit slides.md
 ```
 
-No project needed to look at a Markdown file: `npx deckmd serve my-deck.md` shows that one deck, and `npx deckmd serve a.md b.md` a deck list. Run inside a project, it uses the project's `index.html` and `deck.config.js` and only replaces which decks to show, so your theme applies. `serve` also takes `--port`, `--open` and `--host 0.0.0.0` (to open it to a phone on your network).
+No project needed to look at a Markdown file: `npx deckmd serve my-deck.md` shows that one deck, `npx deckmd serve a.md b.md` a deck list, `npx deckmd serve some/folder` every deck in it. Run inside a project (found like git finds its repository: in this folder or the ones above), it uses the project's `index.html` and `deck.config.js` and only replaces which decks to show, so your theme applies; `npx deckmd -C path …` starts in another folder. `serve` also takes `--port`, `--open` and `--host 0.0.0.0` (to open it to a phone on your network).
 
 When you're done, press **E** while viewing the deck → "Offline", or run `npx deckmd slides.md`. Commit the resulting file next to the deck; that is the frozen version.
 
@@ -86,7 +86,7 @@ When you're done, press **E** while viewing the deck → "Offline", or run `npx 
 
 `init` never overwrites: if any of the files (with `--repo`, also `deckmd/`) already exists, it stops and changes nothing. To do it by hand, or with a git submodule: [docs/usage.md](docs/usage.md).
 
-In a `--multi` repository, add a deck with `npx deckmd add my-talk "My talk title"`: it creates `slides/my-talk/deck.md` from the starter, with the title and date filled in, and the deck shows up in the deck list.
+In a project, add a deck with `npx deckmd add my-talk "My talk title"` (from any folder in it): it creates `slides/my-talk/deck.md` from the starter, with the title and date filled in, and the deck shows up in the deck list. Outside a project it makes `./my-talk.md`.
 
 Working offline, opening without a server, URL options and config: [docs/usage.md](docs/usage.md).
 
