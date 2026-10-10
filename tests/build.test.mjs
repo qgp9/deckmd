@@ -954,7 +954,7 @@ test('grid: data lines fill the cells (Markdown inside), commands add colors; as
   assert.match(t, /<td class="cell tint is-good" data-id="t-7" style="text-align:right">7<\/td><td class="cell tint is-good" data-id="t-8" style="text-align:center"><strong>9<\/strong><\/td>/, 'B3:C3 is row 3, columns B and C: the header row counts as row 1');
   assert.match(t, /<td class="cell hl" data-id="t-3" style="text-align:left">A<\/td>/, 'A2 highlighted, column A is left-aligned');
   assert.match(t, /style="text-align:right">10<\/td>/);
-  assert.match(t, /<th class="cell" data-id="t-2" style="text-align:center">x\|y<\/th>/, 'a command label is plain text');
+  assert.match(t, /<th class="cell" data-id="t-2" style="text-align:center" scope="col">x\|y<\/th>/, 'a command label is plain text');
   assert.equal(grid(code, { id: 't', as: 'table' }), t, 'as=table is the same as ```table');
   const g = grid(code, { id: 'g' });
   assert.match(g, /^<div class="grid" style="--cols:3">/);
@@ -967,6 +967,9 @@ test('grid: data lines fill the cells (Markdown inside), commands add colors; as
   assert.equal((table('', { size: '2x3' }).match(/<td/g) || []).length, 6);
   assert.throws(() => table('| a | b | c |', { size: '1x2' }), /3|size/);
   assert.throws(() => grid('A1 x', { as: 'list' }), /as=list/);
+  for (const [bad, why] of [['A0 x', /rows start at 1/], ['A0:B2 x', /rows start at 1/], ['0:1 x', /rows start at 1/]]) assert.throws(() => grid(bad, { size: '2x2' }), why, bad);
+  assert.throws(() => grid('A1 x', { size: 'axb' }), /bad size="axb"/);
+  assert.match(table('| a | b |\n|---|---|\n| c | d |', {}), /<th class="cell" data-id="g-0" scope="col">a<\/th>/, 'header cells say they are column headers');
   assert.equal(grid(code, { id: 't', as: ' Table ' }), t, 'as is read without case and spaces');
   assert.equal(grid(code, { id: 't', as: '"table"' }), t, 'and without quotes');
   assert.equal(table(code, { id: 't', as: 'table' }), t);

@@ -36,9 +36,11 @@
         for (let i = a; i <= b; i++) add(Math.floor(i / cols), i % cols);
       } else if ((m = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/i.exec(p))) {         // B2, B2:C5
         const c1 = colOf(m[1]), r1 = +m[2] - 1, c2 = m[3] ? colOf(m[3]) : c1, r2 = m[4] ? +m[4] - 1 : r1;
+        if (r1 < 0 || r2 < 0) throw new Error(`rows start at 1 (A1 is the first cell): "${p}"`);
         for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) add(r, c);
       } else if ((m = /^(\d+):(\d+)$/.exec(p))) {                                  // 3:3, 2:4 = rows
         if (!rows) throw new Error(`a whole row (${p}) needs size=rowsxcols`);
+        if (+m[1] < 1 || +m[2] < 1) throw new Error(`rows start at 1: "${p}"`);
         for (let r = +m[1] - 1; r <= +m[2] - 1; r++) for (let c = 0; c < cols; c++) add(r, c);
       } else if ((m = /^([A-Z]+):([A-Z]+)$/i.exec(p))) {                           // C:C, B:D = columns
         if (!rows) throw new Error(`a whole column (${p}) needs size=rowsxcols`);
@@ -65,6 +67,7 @@
   function parse(code, a) {
     const start = a.start != null ? +a.start : 0;
     const size = /^(\d+)\s*x\s*(\d+)$/i.exec(a.size || '');
+    if (a.size != null && !size) throw new Error(`bad size="${a.size}": use size=ROWSxCOLUMNS (size=4x8)`);
     const dataLines = [], cmdLines = [];
     code.split('\n').forEach((raw, ln) => (/^\s*\|/.test(raw) ? dataLines : cmdLines).push([raw, ln]));
     const data = parseData(dataLines.map(([raw]) => raw));
@@ -116,7 +119,7 @@
     data.rows.forEach((row, r) => row.forEach((text, c) => Object.assign(cells[r * cols + c], { label: text, md: true })));
     for (const [idx, o] of set) {
       for (const i of idx) {
-        if (i >= cells.length) throw new Error(`cell ${i + start} is outside the grid (${rows}x${cols})`);
+        if (i < 0 || i >= cells.length) throw new Error(`cell ${i + start} is outside the grid (${rows}x${cols})`);
         Object.assign(cells[i], o);
       }
     }
@@ -136,7 +139,7 @@
   function renderTable(p, id) {
     const row = (r, tag) => `<tr>${Array.from({ length: p.cols }, (_, c) => {
       const i = r * p.cols + c, cell = p.cells[i], al = p.align?.[c];
-      return `<${tag} ${cellAttrs(cell, id, i, al ? [`text-align:${al}`] : [])}>${inner(cell)}</${tag}>`;
+      return `<${tag} ${cellAttrs(cell, id, i, al ? [`text-align:${al}`] : [])}${tag === 'th' ? ' scope="col"' : ''}>${inner(cell)}</${tag}>`;
     }).join('')}</tr>`;
     const body = Array.from({ length: p.rows }, (_, r) => r).filter(r => !(p.header && r === 0));
     return `<table class="grid-table">${p.header ? `<thead>${row(0, 'th')}</thead>` : ''}<tbody>${body.map(r => row(r, 'td')).join('')}</tbody></table>\n`;
