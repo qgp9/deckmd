@@ -98,6 +98,8 @@
   const tagBase = el => (tagUrl(el) ? new URL(tagUrl(el), location.href) : new URL(el.dataset.src, window.DeckMD.here));
 
   // Images the deck points to. Outside URLs (https:, //…) are not embedded but reported separately
+  // Code is shown as written, never loaded: an example like `<!-- bg: photo.jpg -->` or ![](x.png) in a code block or span is not a reference (Markdown only; a page's HTML has its own tags)
+  const withoutCode = t => t.replace(/^[ \t]*(`{3,}|~{3,})[^\n]*\n[\s\S]*?^[ \t]*\1[`~]*[ \t]*$/gm, '').replace(/(`+)(?:(?!\1)[\s\S])+?\1/g, '');
   function allRefs(text) {
     const refs = new Set();
     for (const m of text.matchAll(/!\[[^\]]*\]\(\s*<?([^)\s>]+)/g)) refs.add(m[1]);
@@ -152,7 +154,7 @@
     let slides = '', source = '';
     const page = D.pageSlidesHTML != null;
     const assets = {};
-    const refs = allRefs(page ? D.pageSlidesHTML : D.source || '');
+    const refs = allRefs(page ? D.pageSlidesHTML : withoutCode(D.source || ''));
     const external = refs.filter(isExternal);
     for (const ref of refs.filter(r => !isExternal(r))) {
       say(`image: ${ref}`);
