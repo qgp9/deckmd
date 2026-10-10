@@ -982,6 +982,8 @@ test('grid: data lines fill the cells (Markdown inside), commands add colors; as
   assert.throws(() => grid('A1 x', { cols: 'abc' }), /bad cols/);
   assert.throws(() => grid('| a | b | c |', { cols: '2' }), /table has 3 columns but cols=2/);
   assert.throws(() => grid('| a | b |', { cols: 'abc' }), /bad cols/, 'checked before the data decides the width');
+  for (const bad of [true, '', ' 8 ', '8.0', '0', '-2', '1e1']) assert.throws(() => grid('A1 x', { cols: bad }), /bad cols/, `cols=${JSON.stringify(bad)} (a bare cols, spaces, decimals, zero, negative, exponent)`);
+  assert.match(grid('A1 x', { cols: '8' }), /--cols:8/);
   assert.throws(() => grid('A1 x', { cols: '2', size: '4x8' }), /disagree/);
   assert.match(grid('A1 x', { cols: '8', size: '4x8' }), /--cols:8/, 'the same number twice is fine');
   assert.throws(() => grid('B2// note', { size: '3x3' }), /can't read cell spec/, 'a // needs a space before it to be a comment (so http://x works unquoted)');
