@@ -98,7 +98,9 @@
         const fill = spec.endsWith('>');
         if (fill) {                                      // 8> a b c — fill in order
           spec = spec.slice(0, -1);
-          const [[first], n] = cellsOf(spec, cols, known, start);
+          const [starts, n] = cellsOf(spec, cols, known, start);
+          if (starts.length !== 1) throw new Error(`"${spec}>" fills in order from ONE cell (8> a b c), not from a range`);
+          const [first] = starts;
           tok.forEach((t, k) => {
             const hl = /[^\\]!$/.test(t) || t === '!';
             const label = t.replace(/!$/, '').replace(/\\!$/, '!').replace(/^"|"$/g, '');

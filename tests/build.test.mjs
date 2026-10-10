@@ -978,6 +978,9 @@ test('grid: data lines fill the cells (Markdown inside), commands add colors; as
   assert.match(grid('B2 "two words" good', { size: '3x3' }), /two words/);
   assert.throws(() => grid('A1 x', { size: '1000x1000' }), /too many cells/);
   assert.throws(() => grid('A1 x', { cols: 'abc' }), /bad cols/);
+  assert.throws(() => grid('1-3> a b c', { size: '1x5' }), /fills in order from ONE cell/);
+  assert.throws(() => grid('A1:B2> a b', { size: '3x3' }), /fills in order from ONE cell/);
+  assert.match(grid('B2> a b', { size: '3x3' }), /<b>b<\/b>/, 'a single cell start still works (Excel address)');
   // a typo in a range must fail at once, not loop over millions of cells; and a |---| line as wide as the header
   for (const bad of ['A1:ZZZ999 x', 'A1:A1000000 x', '1-99999999 x', '1:1000000 x']) {
     const t0 = Date.now();
