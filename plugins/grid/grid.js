@@ -89,9 +89,14 @@
     const dataLines = [], cmdLines = [];
     code.split('\n').forEach((raw, ln) => (/^\s*\|/.test(raw) ? dataLines : cmdLines).push([raw, ln]));
     const data = parseData(dataLines.map(([raw]) => raw));
-    if (a.cols != null && !size && data.cols > +a.cols) throw new Error(`the table has ${data.cols} columns but cols=${a.cols}`);
-    const cols = size ? +size[2] : data.cols || +(a.cols || 16);
-    if (!Number.isInteger(cols) || cols < 1) throw new Error(`bad cols="${a.cols}": a number of columns, 1 or more`);
+    let wantCols = null;                                           // cols=N: the width of a grid with neither data nor size; with them it must agree
+    if (a.cols != null) {
+      if (!/^\d+$/.test(String(a.cols)) || +a.cols < 1) throw new Error(`bad cols="${a.cols}": a number of columns, 1 or more`);   // whole digits only (a bare cols, 8.0 and " 8 " are not)
+      wantCols = +a.cols;
+    }
+    if (wantCols != null && size && wantCols !== +size[2]) throw new Error(`cols=${a.cols} and size=${a.size} disagree: size already says the columns`);
+    if (wantCols != null && !size && data.cols > wantCols) throw new Error(`the table has ${data.cols} columns but cols=${a.cols}`);
+    const cols = size ? +size[2] : data.cols || wantCols || 16;
     if (a.h != null && !(+a.h > 0)) throw new Error(`bad h="${a.h}": the cell height in px`);
     let rows = size ? +size[1] : 0;
     if (data.rows.length && (data.cols > cols || (size && data.rows.length > rows))) throw new Error(`the table is ${data.rows.length}x${data.cols} but size=${a.size}`);
