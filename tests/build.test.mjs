@@ -978,6 +978,13 @@ test('grid: data lines fill the cells (Markdown inside), commands add colors; as
   assert.match(grid('B2 "two words" good', { size: '3x3' }), /two words/);
   assert.throws(() => grid('A1 x', { size: '1000x1000' }), /too many cells/);
   assert.throws(() => grid('A1 x', { cols: 'abc' }), /bad cols/);
+  // a typo in a range must fail at once, not loop over millions of cells; and a |---| line as wide as the header
+  for (const bad of ['A1:ZZZ999 x', 'A1:A1000000 x', '1-99999999 x', '1:1000000 x']) {
+    const t0 = Date.now();
+    assert.throws(() => grid(bad, { size: '2x3' }), /more than 10000 cells|outside the grid|too many/, bad);
+    assert.ok(Date.now() - t0 < 500, `${bad} fails quickly`);
+  }
+  assert.throws(() => table('| a | b | c |\n|---|---|\n| 1 | 2 | 3 |', {}), /\|---\| line has 2 cells but the header row has 3/);
   assert.throws(() => grid('A1 x', { size: '1x1', h: 'abc' }), /bad h=/);
   assert.match(table('| a | b |\n|---|---|\n| c | d |', {}), /<th class="cell" data-id="g-0" scope="col">a<\/th>/, 'header cells say they are column headers');
   assert.equal(grid(code, { id: 't', as: ' Table ' }), t, 'as is read without case and spaces');

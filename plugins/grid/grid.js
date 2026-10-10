@@ -31,20 +31,25 @@
     for (const part of spec.split(',')) {
       const p = part.trim();
       let m;
+      const room = n => { if (out.length + n > MAX_CELLS) throw new Error(`"${p}" is more than ${MAX_CELLS} cells`); };   // before the loop: a typo like A1:ZZZ999 must not run for minutes
       if ((m = /^(\d+)(?:-(\d+))?$/.exec(p))) {                                  // 5, 1-3
         const a = +m[1] - start, b = (m[2] != null ? +m[2] : +m[1]) - start;
         if (a < 0 || b < a) throw new Error(`bad cell number: "${p}"`);
+        room(b - a + 1);
         for (let i = a; i <= b; i++) add(Math.floor(i / cols), i % cols);
       } else if ((m = /^([A-Z]+)(\d+)(?::([A-Z]+)(\d+))?$/i.exec(p))) {         // B2, B2:C5
         const c1 = colOf(m[1]), r1 = +m[2] - 1, c2 = m[3] ? colOf(m[3]) : c1, r2 = m[4] ? +m[4] - 1 : r1;
         if (r1 < 0 || r2 < 0) throw new Error(`rows start at 1 (A1 is the first cell): "${p}"`);
+        room((Math.abs(r2 - r1) + 1) * (Math.abs(c2 - c1) + 1));
         for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) add(r, c);
       } else if ((m = /^(\d+):(\d+)$/.exec(p))) {                                  // 3:3, 2:4 = rows
         if (!rows) throw new Error(`a whole row (${p}) needs size=rowsxcols`);
         if (+m[1] < 1 || +m[2] < 1) throw new Error(`rows start at 1: "${p}"`);
+        room((Math.abs(+m[2] - +m[1]) + 1) * cols);
         for (let r = Math.min(+m[1], +m[2]) - 1; r <= Math.max(+m[1], +m[2]) - 1; r++) for (let c = 0; c < cols; c++) add(r, c);
       } else if ((m = /^([A-Z]+):([A-Z]+)$/i.exec(p))) {                           // C:C, B:D = columns
         if (!rows) throw new Error(`a whole column (${p}) needs size=rowsxcols`);
+        room(rows * (Math.abs(colOf(m[2]) - colOf(m[1])) + 1));
         for (let r = 0; r < rows; r++) for (let c = Math.min(colOf(m[1]), colOf(m[2])); c <= Math.max(colOf(m[1]), colOf(m[2])); c++) add(r, c);
       } else throw new Error(`can't read cell spec: "${p}"`);
     }
@@ -58,6 +63,7 @@
     const rows = lines.map(splitRow);
     let align = null, header = false;
     if (rows.length > 1 && rows[1].every(c => /^:?-+:?$/.test(c))) {
+      if (rows[1].length !== rows[0].length) throw new Error(`the |---| line has ${rows[1].length} cells but the header row has ${rows[0].length}`);
       align = rows[1].map(c => (c.startsWith(':') ? (c.endsWith(':') ? 'center' : 'left') : c.endsWith(':') ? 'right' : null));
       rows.splice(1, 1);
       header = true;
