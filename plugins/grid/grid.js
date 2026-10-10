@@ -17,6 +17,7 @@
   const { esc } = DeckMD;
   DeckMD.loadCSS('grid.css');
 
+  const MAX_CELLS = 10000;
   const NAMED = ['accent', 'cool', 'good', 'bad', 'warn', 'muted'];
   const isColor = t => NAMED.includes(t) || /^#[0-9a-f]{3,8}$/i.test(t);
   const colOf = s => [...s.toUpperCase()].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;   // A → 0
@@ -41,10 +42,10 @@
       } else if ((m = /^(\d+):(\d+)$/.exec(p))) {                                  // 3:3, 2:4 = rows
         if (!rows) throw new Error(`a whole row (${p}) needs size=rowsxcols`);
         if (+m[1] < 1 || +m[2] < 1) throw new Error(`rows start at 1: "${p}"`);
-        for (let r = +m[1] - 1; r <= +m[2] - 1; r++) for (let c = 0; c < cols; c++) add(r, c);
+        for (let r = Math.min(+m[1], +m[2]) - 1; r <= Math.max(+m[1], +m[2]) - 1; r++) for (let c = 0; c < cols; c++) add(r, c);
       } else if ((m = /^([A-Z]+):([A-Z]+)$/i.exec(p))) {                           // C:C, B:D = columns
         if (!rows) throw new Error(`a whole column (${p}) needs size=rowsxcols`);
-        for (let r = 0; r < rows; r++) for (let c = colOf(m[1]); c <= colOf(m[2]); c++) add(r, c);
+        for (let r = 0; r < rows; r++) for (let c = Math.min(colOf(m[1]), colOf(m[2])); c <= Math.max(colOf(m[1]), colOf(m[2])); c++) add(r, c);
       } else throw new Error(`can't read cell spec: "${p}"`);
     }
     return [out, need];
@@ -72,6 +73,8 @@
     code.split('\n').forEach((raw, ln) => (/^\s*\|/.test(raw) ? dataLines : cmdLines).push([raw, ln]));
     const data = parseData(dataLines.map(([raw]) => raw));
     const cols = size ? +size[2] : data.cols || +(a.cols || 16);
+    if (!Number.isInteger(cols) || cols < 1) throw new Error(`bad cols="${a.cols}": a number of columns, 1 or more`);
+    if (a.h != null && !(+a.h > 0)) throw new Error(`bad h="${a.h}": the cell height in px`);
     let rows = size ? +size[1] : 0;
     if (data.rows.length && (data.cols > cols || (size && data.rows.length > rows))) throw new Error(`the table is ${data.rows.length}x${data.cols} but size=${a.size}`);
     const known = rows || data.rows.length;                  // rows known before the commands are read (whole rows and columns need it)
@@ -83,6 +86,7 @@
       const where = `line ${ln + 1}`;
       try {
         const tok = line.match(/"[^"]*"|\S+/g);
+        if (tok.some(t => t.startsWith('"') && !/^"[^"]*"$/.test(t))) throw new Error('unclosed quote (a text with spaces goes in "double quotes")');
         let spec = tok.shift();
         while (spec.endsWith(',') && tok.length) spec += tok.shift();       // 1-3, 9-10 (space after a comma)
         const fill = spec.endsWith('>');
@@ -115,6 +119,7 @@
       } catch (e) { throw new Error(`${where}: ${e.message}`); }
     });
     rows = rows || Math.max(need, data.rows.length);
+    if (rows * cols > MAX_CELLS) throw new Error(`${rows}x${cols} is too many cells (at most ${MAX_CELLS})`);
     const cells = Array.from({ length: rows * cols }, () => ({ label: '', color: null, hl: false, md: false }));
     data.rows.forEach((row, r) => row.forEach((text, c) => Object.assign(cells[r * cols + c], { label: text, md: true })));
     for (const [idx, o] of set) {

@@ -969,13 +969,23 @@ test('grid: data lines fill the cells (Markdown inside), commands add colors; as
   assert.throws(() => grid('A1 x', { as: 'list' }), /as=list/);
   for (const [bad, why] of [['A0 x', /rows start at 1/], ['A0:B2 x', /rows start at 1/], ['0:1 x', /rows start at 1/]]) assert.throws(() => grid(bad, { size: '2x2' }), why, bad);
   assert.throws(() => grid('A1 x', { size: 'axb' }), /bad size="axb"/);
+  // reversed ranges work like the rectangles do (either order); an unclosed quote is an error, not a label with a stray quote
+  const cellsOn = (code, a) => (grid(code, a).match(/cell tint is-good/g) || []).length;
+  assert.equal(cellsOn('C:A good', { size: '2x3' }), 6, 'a reversed column range');
+  assert.equal(cellsOn('A:C good', { size: '2x3' }), 6);
+  assert.equal(cellsOn('2:1 good', { size: '2x3' }), 6, 'a reversed row range');
+  assert.throws(() => grid('B2 "unclosed', { size: '3x3' }), /unclosed quote/);
+  assert.match(grid('B2 "two words" good', { size: '3x3' }), /two words/);
+  assert.throws(() => grid('A1 x', { size: '1000x1000' }), /too many cells/);
+  assert.throws(() => grid('A1 x', { cols: 'abc' }), /bad cols/);
+  assert.throws(() => grid('A1 x', { size: '1x1', h: 'abc' }), /bad h=/);
   assert.match(table('| a | b |\n|---|---|\n| c | d |', {}), /<th class="cell" data-id="g-0" scope="col">a<\/th>/, 'header cells say they are column headers');
   assert.equal(grid(code, { id: 't', as: ' Table ' }), t, 'as is read without case and spaces');
   assert.equal(grid(code, { id: 't', as: '"table"' }), t, 'and without quotes');
   assert.equal(table(code, { id: 't', as: 'table' }), t);
   assert.throws(() => table(code, { as: 'grid' }), /as=grid: this block is a table/, '```table {as=grid} is a conflict, not silently a table');
   // a color is a theme name or #hex only: anything else is text (so it can't reach the style attribute)
-  const sneaky = grid('A1 red;--x:1 "><b>', { size: '1x1' });
+  const sneaky = grid('A1 red;--x:1 ><b>', { size: '1x1' });
   assert.doesNotMatch(sneaky, /--c:/, 'no custom color reached the cell');
   assert.match(sneaky, /<b>red;--x:1 &gt;&lt;b&gt;<\/b>/, 'it is the (escaped) text of the cell');
 });
