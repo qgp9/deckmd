@@ -10,7 +10,8 @@
 //   node tools/build.mjs packed.html --unpack   take the user files (Markdown, config, CSS, JS, images) out of a bundled file back to their original places
 //                                                (except libraries (CDN URLs) and deckmd's files) → <bundled file name>/ folder
 //   From npm: npx deckmd talk.md [--share | --unpack] (no deckmd folder needed)
-//   The Markdown must be under the current folder (the launcher page is there): cd into the deck's folder first
+//   The Markdown must be inside the deckmd project (the folder with the launcher index.html, found from the current folder upwards); with no project,
+//   inside the current folder. Run it from anywhere in the project. -C <folder> starts there instead (before the command: deckmd -C slides/talk talk.md)
 //   -o out     pack: output file, unpack: folder to extract into
 //   --force    overwrite the output if it exists (otherwise an error). Never the originals (input, launcher page, config), even with --force
 //
@@ -23,12 +24,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { findProject, isInside, isLauncher } from './project.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MODES = ['offline', 'share'];
 
 // ── Options ──────────────────────────────────────────────────────
 const args = process.argv.slice(2);
+// -C <folder> (like git): run as if started in that folder; the project is looked for from there. It doesn't have to be the project's top.
+while (args[0] === '-C') {
+  const dir = args[1];
+  if (!dir || dir.startsWith('-')) { console.error('-C needs a folder  (--help)'); process.exit(1); }
+  try { process.chdir(dir); } catch { console.error(`-C: not a folder: ${dir}`); process.exit(1); }
+  args.splice(0, 2);
+}
 if (args[0] === 'init') { (await import('./init.mjs')).init(args.slice(1)); process.exit(process.exitCode ?? 0); }
 if (args[0] === 'serve') { await (await import('./serve.mjs')).serve(args.slice(1)); process.exit(0); }
 if (args[0] === 'add') { (await import('./add.mjs')).add(args.slice(1)); process.exit(process.exitCode ?? 0); }
@@ -61,15 +70,15 @@ if (UNPACK) unpack(); else await pack();
 
 // ── Pack ─────────────────────────────────────────────────────────
 async function pack() {
-  // The launcher page is always in the current folder (its index.html, or one made in memory), and deck.js opens only Markdown under
-  // the page's folder (?src). So a deck outside the current folder can't be opened: say so here, before jsdom, and say what to run.
+  // The launcher page is the index.html of the deckmd project the command runs in (found from the current folder upwards, like git finds its
+  // repository), or, with no project, one made in memory in the current folder. deck.js opens only Markdown under the page's folder (?src),
+  // so a deck outside that folder can't be opened: say so here, before jsdom, and say what to run.
   // Compared by the written path, like deck.js does (no realpath): a link inside the folder counts as inside.
-  if (!/\.html?$/i.test(INPUT)) {
-    const rel = path.relative(process.cwd(), INPUT);
-    if (rel.startsWith('..') || path.isAbsolute(rel)) {
-      console.error(`${inputs[0]} is outside the current folder: the launcher page is here and only opens Markdown under it.\nRun it from the deck's folder:  cd ${show(path.dirname(INPUT))} && npx deckmd ${path.basename(INPUT)}`);
-      process.exit(1);
-    }
+  const project = /\.html?$/i.test(INPUT) ? null : findProject(process.cwd());
+  const baseDir = project ? project.root : process.cwd();
+  if (!/\.html?$/i.test(INPUT) && !isInside(INPUT, baseDir)) {
+    console.error(`${inputs[0]} is outside ${project ? `the deckmd project at ${show(baseDir)}` : 'the current folder'}: the launcher page is ${project ? 'there' : 'here'} and only opens Markdown under it.\nRun it from the deck's folder:  cd ${show(path.dirname(INPUT))} && npx deckmd ${path.basename(INPUT)}`);
+    process.exit(1);
   }
   let jsdom;
   try { jsdom = (await import('jsdom')).default; } catch { die('packing needs jsdom: run npm install in the deckmd folder'); }
@@ -81,10 +90,10 @@ async function pack() {
   const { localPath } = ctx.window.DeckBoot;
 
   const PAGE = /\.html?$/i.test(INPUT);
-  const pagePath = PAGE ? INPUT : path.join(process.cwd(), 'index.html');
+  const pagePath = PAGE ? INPUT : path.join(baseDir, 'index.html');
   const pageDir = path.dirname(pagePath);
   const launcher = !PAGE && fs.existsSync(pagePath) ? fs.readFileSync(pagePath, 'utf8') : null;
-  const useLauncher = !!launcher && /js\/(boot|deck)\.js"/.test(launcher);
+  const useLauncher = !!launcher && isLauncher(launcher);
   const pageHtml = PAGE ? fs.readFileSync(pagePath, 'utf8') : useLauncher ? launcher : `<!doctype html>
 <html lang="en">
 <head>

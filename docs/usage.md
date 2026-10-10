@@ -27,17 +27,27 @@ npx deckmd init [dir] [--cdn | --repo] [--single | --multi]
 | `--single` (default) | one deck: `index.html` + `slides.md`. Opening `index.html` shows it, no config needed |
 | `--multi` | a talks repository: `index.html`, `deck.config.js`, `slides/first-deck/deck.md`. Opening `index.html` lists the decks |
 
-`init` never overwrites. If any file it would create exists (with `--repo`, also `deckmd/`), it stops and changes nothing.
+`init` never overwrites. If any file it would create exists (with `--repo`, also `deckmd/`), it stops and changes nothing. Inside an existing deckmd project (found the way [below](#the-project-and--c)) it refuses, since a project in a project is usually a mistake (`add` makes a deck there); `--force` starts one anyway.
 
 ### `npx deckmd add`
 
-Adds a deck to a `--multi` (talks) repository; run it at the top of the repository.
+Adds a deck.
 
 ```bash
-npx deckmd add my-talk "My talk title"      # → slides/my-talk/deck.md
+npx deckmd add my-talk "My talk title"      # in a project → <project>/slides/my-talk/deck.md
 ```
 
-It copies the starter (`templates/deck.md`) with the title and today's date filled in. The title is optional (`my-talk` → "My talk"; an unquoted `add my-talk My talk title` works too). The name is the folder name: no `/ \ : * ? " < > |`, and no leading dot. It never overwrites an existing `talk.md`. The deck shows up in the deck list on the next reload.
+It copies the starter (`templates/deck.md`) with the title and today's date filled in. The title is optional (`my-talk` → "My talk"; an unquoted `add my-talk My talk title` works too). The name is the folder (or file) name: no `/ \ : * ? " < > |`, and no leading dot. It never overwrites.
+
+In a [project](#the-project-and--c) the deck goes to `slides/<name>/deck.md` at the top of the project, whatever folder of it you are in, and shows up in the deck list on the next reload. Without a project it makes just `./<name>.md` here, a deck on its own (`npx deckmd serve <name>.md`).
+
+### The project and `-C`
+
+A **project** (the "tree") is a folder with a deckmd launcher: an `index.html` that loads `boot.js` (or `deck.js`) and has no slides written in it. Like git with its repository, `serve`, `add`, `init` and packing look for it in the folder you are in and in the folders above it (up to 4 levels; never your home folder or above, never the root of the disk). So `npx deckmd add x` works from `slides/my-talk/img/` too.
+
+`npx deckmd -C path <command> …` starts in that folder, as if you had `cd`'d there; the project is looked for from there (the folder need not be the project's root). `-C` goes before the command.
+
+Whenever there is a project, only files inside it are used. Without one, only what you name is used, and nothing above the folder you are in.
 
 ### Repository by hand (git submodule)
 
@@ -78,24 +88,25 @@ Then add `data-local` to the tag in the launcher page.
 ## Viewing while you write
 
 ```bash
-npx deckmd serve                          # this project: the current folder, which needs a deckmd index.html (npx deckmd init makes one)
-npx deckmd serve my-deck.md               # one deck, nothing else needed: no index.html, no config
+npx deckmd serve                          # the project (see above), from any folder in it
+npx deckmd serve my-deck.md               # one deck; with no project nothing else is needed: no index.html, no config
 npx deckmd serve a.md b.md examples/*.md  # a deck list of those files
+npx deckmd serve slides                   # a folder: every .md in it, two levels deep (never dot folders or node_modules)
 ```
 
 `http://localhost:8000/` → deck list → deck. Edit the Markdown and reload, and it redraws the same slide you were on.
 
-**What is served** depends on whether the current folder is a project, meaning it has a deckmd `index.html` (a page with a `<script>` that loads `boot.js` or `deck.js`):
+**What is served** depends on whether a [project](#the-project-and--c) is found from the current folder:
 
-| | In a project | No project (files given) | Neither |
-|---|---|---|---|
-| `serve` | the folder as it is | n/a | refused, with `npx deckmd init` / `serve my-deck.md` as the way out |
-| `serve a.md …` | the folder as it is; its `index.html` is the page and its `deck.config.js` is followed, only `home`, `src` and `decks` are replaced by your files, so the theme, plugins and CSS apply | the server makes the launcher page and config; only the **folders of the decks you named** (in full), top-level `*.css`, and `themes/ css/ js/ plugins/` | |
+| | In a project | No project |
+|---|---|---|
+| `serve` | the whole project, as it is | refused, with `npx deckmd init` / `serve my-deck.md` as the way out |
+| `serve a.md …` (files or folders) | the project's `index.html` is the page and its `deck.config.js` is followed, only `home`, `src` and `decks` are replaced by what you named, so the theme, plugins and CSS apply. The site is the whole project (without `node_modules`) | the server makes the launcher page and config at the common folder of the decks (never above the current folder), and serves only the **folders of the decks you named** (in full). Nothing between them |
 
-- **The current folder is the root of the site**, as it is for [packing](packing.md): a deck must be under it, and a deck outside is refused with the command that works (`cd ../other && npx deckmd serve x.md`). Your home folder, a folder above it, and the root of the disk are refused. Without a project, a file outside the decks' folders (a sibling `assets/`, a top-level `README.md`) is a 404 that says why: put it next to the deck, or run it in a project.
+- **Only files inside the project are used.** A deck outside it is refused, with the command that works (`cd ../other && npx deckmd serve x.md`). Without a project the decks must be under the current folder. Your home folder, a folder above it, and the root of the disk are never served. Without a project, a file outside the decks' folders (a sibling `assets/`, a README one level up) is a 404 that says why: put it next to the deck, or run it in a project. `serve` prints the project it found (and how many folders up) when you started in a subfolder.
 - **Only slide and web file types** are served, everywhere: Markdown, HTML, CSS, JS, JSON, CSV/TSV, YAML, XML, images, fonts, audio, video, PDF, `.wasm`. Keys, certificates, databases, archives and files without an extension are a 404, and they don't show in folder listings. Dot files and folders (`.git`, `.env`) are never served. Of deckmd itself, only `js/ css/ themes/ plugins/` are (under `/_deckmd/`).
 - Files are streamed and answer `Range` requests, so video (and video backgrounds) can seek, and play in Safari. A request can't end the server: a folder it can't read answers 403, and any other failure answers 500 and is printed in the terminal.
-- With a project, folder listings are served so a `decks: 'auto'` deck list can scan `slides/*`; this replaces `python3 -m http.server`, and any static server still works. Files are read from disk on every request, so images and paths resolve relative to the Markdown as usual. The first lines `serve` prints say what it used.
+- In a project, folder listings are served so a `decks: 'auto'` deck list can scan `slides/*`; this replaces `python3 -m http.server`, and any static server still works. Files are read from disk on every request, so images and paths resolve relative to the Markdown as usual. The first lines `serve` prints say what it used.
 - `--port N` (default 8000, or the next free port; `0` = any), `--open` (open the browser), `--host 0.0.0.0` (open it to your network, for a phone or a friend's laptop). The default is `localhost` only. With another host `serve` prints a warning that the folder is open to your network.
 - A request whose `Host` is a domain name is refused (403). Only `localhost`, an IP address, or the name you gave `--host` is accepted, so a web page on some other site can't read your files through your browser by pointing its domain at 127.0.0.1 (DNS rebinding).
 - A symbolic link is followed only while its real path stays inside the served folder (or deckmd's own `js/ css/ themes/ plugins/`, so a `deckmd/` that links to the package works), and the rules above apply to where it really leads: a link to a file outside gets 403, and a link can't reach a dot folder, a folder outside the decks' folders (without a project) or a key file under a harmless name (404; such links are not listed either). A `deck.config.js` that is a link out of the folder is refused too (403).
