@@ -980,6 +980,12 @@ test('grid: data lines fill the cells (Markdown inside), commands add colors; as
   assert.match(grid('B2 "two words" good', { size: '3x3' }), /two words/);
   assert.throws(() => grid('A1 x', { size: '1000x1000' }), /too many cells/);
   assert.throws(() => grid('A1 x', { cols: 'abc' }), /bad cols/);
+  assert.throws(() => grid('| a | b | c |', { cols: '2' }), /table has 3 columns but cols=2/);
+  assert.match(grid('| a | b |', { cols: '4' }), /--cols:2/, 'cols is only the default width: the data decides');
+  // comments: // to the end of the line, except inside quotes; a trailing one after a quoted label is still a comment
+  assert.match(grid('B2 "a // b" good', { size: '3x3' }), /<b>a \/\/ b<\/b>/, 'a quoted // is text');
+  assert.match(grid('B2 "http://x.y" good // a note', { size: '3x3' }), /<b>http:\/\/x\.y<\/b>/);
+  assert.doesNotMatch(grid('B2 hi // a note', { size: '3x3' }), /note/, 'an unquoted // starts a comment');
   assert.throws(() => grid('A1 x', { size: '1x1', start: 'abc' }), /bad start=/);
   assert.throws(() => grid('3-1 x', { size: '1x5' }), /bad cell number/, 'a reversed NUMBER range stays an error (numbers have an order)');
   assert.throws(() => grid('1-3> a b c', { size: '1x5' }), /fills in order from ONE cell/);

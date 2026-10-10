@@ -56,6 +56,16 @@
     return [out, need];
   }
 
+  // `// comment` to the end of the line, but not inside "quoted text" (a label like "http://x" or "a // b" keeps its slashes)
+  function stripComment(line) {
+    let quoted = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') quoted = !quoted;
+      else if (!quoted && line[i] === '/' && line[i + 1] === '/' && (i === 0 || /\s/.test(line[i - 1]))) return line.slice(0, i);
+    }
+    return line;
+  }
+
   // Lines that start with | are the data (a Markdown table: cells, an optional |---|:--:| line for alignment and for a header row); the other lines are
   // the commands. The cells are filled from the data first, then the commands change them, wherever they stand among the data lines.
   const splitRow = line => line.trim().replace(/^\|/, '').replace(/(?<!\\)\|$/, '').split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, '|'));
@@ -79,6 +89,7 @@
     const dataLines = [], cmdLines = [];
     code.split('\n').forEach((raw, ln) => (/^\s*\|/.test(raw) ? dataLines : cmdLines).push([raw, ln]));
     const data = parseData(dataLines.map(([raw]) => raw));
+    if (a.cols != null && !size && data.cols > +a.cols) throw new Error(`the table has ${data.cols} columns but cols=${a.cols}`);
     const cols = size ? +size[2] : data.cols || +(a.cols || 16);
     if (!Number.isInteger(cols) || cols < 1) throw new Error(`bad cols="${a.cols}": a number of columns, 1 or more`);
     if (a.h != null && !(+a.h > 0)) throw new Error(`bad h="${a.h}": the cell height in px`);
@@ -88,7 +99,7 @@
     const set = [];                                      // [cell numbers, {label?, color?, hl?}] in order
     let need = 1;
     cmdLines.forEach(([raw, ln]) => {
-      const line = raw.replace(/(^|\s)\/\/.*$/, '').trim();
+      const line = stripComment(raw).trim();
       if (!line) return;
       const where = `line ${ln + 1}`;
       try {
