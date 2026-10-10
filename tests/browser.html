@@ -50,7 +50,7 @@ function listCheck(d) {
 
 // Checks: slides and notes are counts, ext = number of outside requests (0 = offline), text = text that must be on screen, check = other checks
 const CASES = [
-  { group: 'view', name: 'example grid', url: `${R}?src=examples/grid/talk.md`, slides: 8, notes: 2, font: true },
+  { group: 'view', name: 'example grid', url: `${R}?src=examples/grid/talk.md`, slides: 11, notes: 2, font: true },
   { group: 'view', name: 'example syntax', url: `${R}?src=examples/syntax/talk.md`, slides: 11, notes: 2 },
   { group: 'view', name: 'deck written in HTML', url: `${R}examples/page/`, slides: 3, notes: 1 },
   { group: 'view', name: 'deck list', url: R, check: listCheck },
@@ -59,7 +59,7 @@ const CASES = [
   { group: 'syntax', name: 'split by headings', url: `${R}?src=tests/fixtures/headings/talk.md`, slides: 3, text: ['horizontal rule inside code'] },
   { group: 'syntax', name: '?core (defaultTier: core = slides without a tier stay)', url: `${R}?src=tests/fixtures/tiers/talk.md&core`, slides: 4 },
   { group: 'syntax', name: '?core + defaultTier=none (core slides only)', url: `${R}?src=tests/fixtures/tiers/talk.md&core&defaultTier=none`, slides: 2 },
-  { group: 'syntax', name: '?core with no core slides shows all', url: `${R}?src=examples/grid/talk.md&core&defaultTier=none`, slides: 8 },
+  { group: 'syntax', name: '?core with no core slides shows all', url: `${R}?src=examples/grid/talk.md&core&defaultTier=none`, slides: 11 },
   { group: 'errors', name: 'front matter YAML error', url: `${R}?src=tests/fixtures/bad-yaml/talk.md`, text: ["Can't open the deck", 'front matter (YAML)'] },
   // ?src must stay under the folder of the page (the launcher page in tests/fixtures/under/)
   { group: '?src', name: 'a path under the page folder opens', url: `${R}tests/fixtures/under/index.html?src=talk.md`, slides: 1 },
@@ -73,8 +73,8 @@ const CASES = [
   { group: '?src', name: '?src=..\\… (backslash) is not opened', url: `${R}tests/fixtures/under/index.html?src=..%5Cparse%5Ctalk.md`, text: ["Can't open the deck", 'under this page'] },
   { group: 'errors', name: 'missing deck', url: `${R}?src=tests/fixtures/nothing.md`, text: ["Can't open the deck", '404'] },
   { group: 'errors', name: 'no libraries', url: `${R}tests/fixtures/broken.html`, text: ["Can't open the deck"] },
-  { group: 'bundled', name: 'offline', url: `${OUT}grid.offline.html`, slides: 8, notes: 2, ext: 0, font: true, built: true },
-  { group: 'bundled', name: 'share', url: `${OUT}grid.share.html`, slides: 8, notes: 2, font: true, built: true },
+  { group: 'bundled', name: 'offline', url: `${OUT}grid.offline.html`, slides: 11, notes: 2, ext: 0, font: true, built: true },
+  { group: 'bundled', name: 'share', url: `${OUT}grid.share.html`, slides: 11, notes: 2, font: true, built: true },
   { group: 'bundled', name: 'syntax offline', url: `${OUT}syntax.offline.html`, slides: 11, ext: 0, built: true },
   { group: 'bundled', name: 'HTML deck offline', url: `${OUT}page.offline.html`, slides: 3, ext: 0, built: true },
   { group: 'bundled', name: 'syntax test offline', url: `${OUT}parse.offline.html`, slides: 4, notes: 1, ext: 0, check: parseCheck, built: true },
@@ -83,9 +83,9 @@ const CASES = [
     check: d => (!(d.querySelector('img[alt="present"]')?.src.startsWith('data:') && d.querySelector('section[data-background-image^="data:"]')) ? 'image and background as data:'
       : d.querySelectorAll('section[data-background-video^="blob:"]').length !== 2 ? 'both video backgrounds as blob: (reveal.js splits data: at commas)' : true) },
   { group: 'bundled', name: 'non-ASCII and space in path', url: `${OUT}${encodeURI('ünïcode dir/résult file.html')}`, slides: 4, ext: 0, built: true },
-  { group: 'E key', name: 'pack offline', pack: 'offline', url: `${R}?src=examples/grid/talk.md`, slides: 8, notes: 2, ext: 0, font: true },
-  { group: 'E key', name: 'pack share', pack: 'share', url: `${R}?src=examples/grid/talk.md`, slides: 8, notes: 2, font: true },
-  { group: 'E key', name: 'bundled file again as share', pack: 'share', url: `${OUT}grid.offline.html`, slides: 8, built: true },
+  { group: 'E key', name: 'pack offline', pack: 'offline', url: `${R}?src=examples/grid/talk.md`, slides: 11, notes: 2, ext: 0, font: true },
+  { group: 'E key', name: 'pack share', pack: 'share', url: `${R}?src=examples/grid/talk.md`, slides: 11, notes: 2, font: true },
+  { group: 'E key', name: 'bundled file again as share', pack: 'share', url: `${OUT}grid.offline.html`, slides: 11, built: true },
 ];
 
 const stage = document.getElementById('stage');
