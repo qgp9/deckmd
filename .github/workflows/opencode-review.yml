@@ -1,6 +1,6 @@
 name: opencode-review
 
-# Reviews a pull request when it is opened or marked ready for review, and again on every push to its branch,
+# Reviews a pull request when it is opened, reopened or marked ready for review, and again on every push to its branch,
 # and posts the review as a comment. A push while a review is running cancels that review and starts a new one,
 # so push in response to a review rather than before it has finished. A review that is almost done when it is
 # cancelled can still post its comment, so each comment ends with the commit it reviewed.
@@ -9,7 +9,7 @@ name: opencode-review
 # Pull requests from forks and drafts are skipped: forks get no secrets, so the review could not run.
 on:
   pull_request:
-    types: [opened, ready_for_review, synchronize]
+    types: [opened, reopened, ready_for_review, synchronize]
 
 concurrency:
   group: opencode-review-${{ github.event.pull_request.number }}
