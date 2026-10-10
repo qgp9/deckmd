@@ -1010,6 +1010,97 @@ test('grid: data lines fill the cells (Markdown inside), commands add colors; as
   assert.match(sneaky, /<b>red;--x:1 &gt;&lt;b&gt;<\/b>/, 'it is the (escaped) text of the cell');
 });
 
+// The source plugin on its own: a DOM (jsdom) and a stub of DeckMD / Reveal, no browser
+async function sourcePlugin(query = '', frontMatter = '') {
+  const { JSDOM } = (await import('jsdom')).default;
+  const dom = new JSDOM('<div class="slides"></div>', { url: `http://x.test/${query}` });
+  const { document } = dom.window;
+  const hooks = [], handlers = [], slid = [];
+  const Reveal = { on: (type, fn) => handlers.push([type, fn]), slide: (h, v) => slid.push([h, v]) };
+  const DeckMD = { sources: new WeakMap(), frontMatter, loadCSS() {}, afterRender: fn => hooks.push(fn) };
+  new Function('DeckMD', 'document', 'location', 'window', 'Reveal', fs.readFileSync(path.join(ROOT, 'plugins/source/source.js'), 'utf8'))(DeckMD, document, dom.window.location, { Reveal }, Reveal);
+  const slide = (text, attrs = {}) => {
+    const sec = document.createElement('section');
+    Object.entries(attrs).forEach(([k, v]) => sec.setAttribute(k, v));
+    document.querySelector('.slides').appendChild(sec);
+    if (text != null) DeckMD.sources.set(sec, text);
+    return sec;
+  };
+  const run = sec => hooks.forEach(h => h(sec, DeckMD));
+  return { document, slide, run, handlers, slid, hooks };
+}
+
+test('source plugin: a stack with the slide and a source slide under it; escaped text; off per slide, by ?source=off, and for HTML decks', async () => {
+  const p = await sourcePlugin();
+  const a = p.slide('<!-- class: center -->\n# A <b>x</b>');
+  const off = p.slide('# no', { 'data-source': 'off' });
+  const html = p.slide(null);                                             // a deck written in HTML: no Markdown to show
+  [a, off, html].forEach(p.run);
+  const stack = p.document.querySelector('.slides > section');
+  assert.equal(stack.children.length, 2);
+  assert.equal(stack.firstElementChild, a, 'the slide itself comes first');
+  const code = stack.querySelector('.source-slide pre code.language-markdown');
+  assert.equal(code.textContent, '<!-- class: center -->\n# A <b>x</b>');
+  assert.equal(code.querySelector('b'), null, 'tags are text, not elements');
+  assert.equal(p.document.querySelectorAll('.source-slide').length, 1, 'not under data-source=off, not under a slide without Markdown');
+  assert.equal(p.document.querySelectorAll('.slides > section').length, 3);
+  const own = p.slide('<!-- a slide that is a stack of its own -->');       // raw HTML <section>s inside a Markdown slide
+  own.innerHTML = '<section>top</section><section>below</section>';
+  p.run(own);
+  assert.ok(own.parentElement.classList.contains('slides'), 'still directly in .slides: not wrapped again');
+  assert.equal(own.children.length, 2);
+  assert.equal(p.document.querySelectorAll('.source-slide').length, 1, 'still just the one');
+  const q = await sourcePlugin('?source=off');
+  q.run(q.slide('# x'));
+  assert.equal(q.document.querySelectorAll('.source-slide').length, 0, '?source=off');
+});
+
+test('source plugin: the first slide has one more page before its source: the front matter', async () => {
+  const p = await sourcePlugin('', '---\ntitle: t\nplugins: [source]\n---');
+  const a = p.slide('# A'), b = p.slide('# B'), skipped = p.slide('# C', { 'data-source': 'off' });
+  [a, b, skipped].forEach(p.run);
+  const [s1, s2] = p.document.querySelectorAll('.slides > section');
+  assert.deepEqual([...s1.children].map(c => c.className), ['', 'source-slide front-matter', 'source-slide'], 'slide, front matter, its source');
+  assert.equal(s1.querySelector('.front-matter code').textContent, '---\ntitle: t\nplugins: [source]\n---');
+  assert.equal(s1.querySelector('.source-slide:not(.front-matter) code').textContent, '# A');
+  assert.equal(s2.querySelectorAll('.front-matter').length, 0, 'only the first slide');
+  assert.equal(s2.children.length, 2);
+  const late = await sourcePlugin('', '---\ntitle: t\n---');                // the first slide is off: the front matter goes to the next slide that has a source
+  const off1 = late.slide('# off', { 'data-source': 'off' }), next = late.slide('# next'), after = late.slide('# after');
+  [off1, next, after].forEach(late.run);
+  const stacks = late.document.querySelectorAll('.slides > section');
+  assert.equal(late.document.querySelectorAll('.front-matter').length, 1, 'exactly once, not lost');
+  assert.ok(stacks[1].querySelector('.front-matter'), 'on the next slide that has a source');
+  assert.equal(stacks[2].querySelectorAll('.front-matter').length, 0);
+  const none = await sourcePlugin('', '');                                   // no front matter: nothing extra
+  none.run(none.slide('# A'));
+  assert.equal(none.document.querySelectorAll('.front-matter').length, 0);
+});
+
+test('source plugin: leaving a source sideways forgets the remembered position (no redirect, so a link into a source still works)', async () => {
+  const p = await sourcePlugin();
+  p.run(p.slide('# a'));
+  const [[type, onSlide]] = p.handlers;
+  assert.equal(type, 'slidechanged');
+  assert.equal(p.handlers.length, 1, 'registered once, however many slides');
+  const src = p.document.querySelector('.source-slide'), top = p.document.querySelector('.slides section section'), stack = src.parentElement;
+  stack.setAttribute('data-previous-indexv', '1');                       // what reveal sets when you leave a stack on its source
+  onSlide({ currentSlide: src, previousSlide: undefined, indexh: 2, indexv: 1 });          // the first event (opened on #/2/1)
+  onSlide({ currentSlide: top, previousSlide: src, indexh: 2, indexv: 0 });                // ↑ in the same stack: nothing to forget
+  assert.equal(stack.getAttribute('data-previous-indexv'), '1');
+  onSlide({ currentSlide: top, previousSlide: src, indexh: 3, indexv: 0 });                // → from the source: forget, so ← comes back to the top slide
+  assert.equal(stack.getAttribute('data-previous-indexv'), '0');
+  onSlide({ currentSlide: src, previousSlide: top, indexh: 5, indexv: 1 });                // a jump to a source on purpose (a link) is not redirected
+  assert.deepEqual(p.slid, []);
+});
+
+test('source plugin: packs with the deck (the plugin and its CSS go into the bundle)', () => {
+  const { html } = make('tests/fixtures/source/talk.md', 'source.offline.html', '--offline');
+  const k = keys(html);
+  assert.ok(k.includes('plugins/source/source.js') && k.includes('plugins/source/source.css'), k.join(' '));
+  assert.deepEqual(external(html), []);
+});
+
 test('unpack: only user files back to their places; packing again gives the same result', () => {
   // The real-world layout: deckmd/ inside a presentation repository (here a link pointing to this repository)
   const repo = path.join(SANDBOX, 'unpack-repo');

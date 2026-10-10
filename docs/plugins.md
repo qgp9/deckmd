@@ -73,6 +73,22 @@ A2:A3 accent
 - `size` can be bigger than the data (empty cells) but not smaller. `index`, `head` and `h` are for the `<div>` grid; a table ignores them. (`start` still sets where the plain cell numbers `5`, `1-3` begin; Excel-style addresses are not affected.)
 - A table that is already written as plain Markdown (or `<table>`) is not converted. Write it in the fence, or color a cell of it with `{.y}` `{.n}` `{.m}` at the end of the cell text.
 
+## Built-in: source
+
+Shows, under each slide, the Markdown that made it: press **↓** (the slide below the slide). For example decks and tutorials ("this syntax gives this slide") without copying the source into the deck, so the two can't drift apart.
+
+```yaml
+plugins: [source]
+```
+
+- The first slide that has a source has two pages under it: the **front matter** (the `--- … ---` settings at the top of the file), then its source. (If the first slide is `source: off`, the next one carries the front matter.)
+- The source slide has the slide as written: its settings comment (`<!-- class: center -->`) and content, **without the speaker notes**. It is highlighted as Markdown.
+- Off for one slide: `<!-- source: off -->` in that slide (it can go with other settings: `<!-- class: center; source: off -->`). Off for a viewing: add `?source=off` to the address. Off for the whole deck: don't list the plugin; then no code of it is loaded.
+- Slide numbers don't change (a source slide is a vertical slide: ↓, not →). Moving sideways always starts at the top slide of the next stack, never at a source you looked at last; going to a source on purpose (↓, a link such as `#/3/1`, the back button) works.
+- `?core` cuts a slide together with its source. A deck written in HTML has no Markdown, so it gets none; a slide that is already a vertical stack (raw `<section>`s inside it) is left alone, since reveal.js has only two levels.
+- Printing (`?print-pdf`) prints the source slides too, as vertical slides do. Add `?source=off` to leave them out.
+- There is no button for it in the helper panel (E): it is something the deck's author turns on.
+
 ## Writing a plugin
 
 Put it at `plugins/<name>/<name>.js` (inside deckmd), or in a JS file at any path. It registers syntax with `DeckMD`.
@@ -89,6 +105,7 @@ DeckMD.afterRender(section => { /* adjust the slide after it is built */ });
 |---|---|
 | `DeckMD.registerFence(lang, (code, attrs, token) => HTML)` | Turns code blocks of that language into HTML. `{key=val}` in the code block header arrives as `attrs` (```` ```grid {size=4x8 index} ````). A thrown error is shown in place as a red box |
 | `DeckMD.afterRender((section, deck) => …)` | After a slide is built (before reveal.js starts) |
+| `DeckMD.sources` | A `WeakMap`: slide `section` → the Markdown it was made from (settings comment + content, without the notes). Empty for slides of a deck written in HTML |
 | `DeckMD.registerRun(name, section => cleanup)` | Every time a slide with the slide setting `run: name` is shown. The returned function is called on leaving ([interactive.md](interactive.md)) |
 | `DeckMD.loadCSS(path)` | CSS next to the plugin itself |
 | `DeckMD.md` | The markdown-it instance |

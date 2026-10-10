@@ -39,7 +39,7 @@ A few bits of Markdown syntax on top of reveal.js.
 - Below `Note:` go the speaker notes, `<!-- @@ note -->` is a review note (`?draft`), and `?core` gives the short version
 - reveal.js features (fragments, backgrounds, transitions, auto-animate, code line highlights) straight from Markdown
 - Markdown without slide breaks (a README, say) is split by headings into a deck
-- Add syntax with plugins (built in: cell diagrams and tables with ```` ```grid ````)
+- Add syntax with plugins (built in: cell diagrams and tables with ```` ```grid ````, and a source view under each slide)
 
 → [docs/writing.md](docs/writing.md), and the syntax guide as a deck: [`examples/syntax/talk.md`](examples/syntax/talk.md)
 
