@@ -969,6 +969,8 @@ test('grid: data lines fill the cells (Markdown inside), commands add colors; as
   assert.throws(() => grid('A1 x', { as: 'list' }), /as=list/);
   for (const [bad, why] of [['A0 x', /rows start at 1/], ['A0:B2 x', /rows start at 1/], ['0:1 x', /rows start at 1/]]) assert.throws(() => grid(bad, { size: '2x2' }), why, bad);
   assert.throws(() => grid('A1 x', { size: 'axb' }), /bad size="axb"/);
+  for (const z of ['0x5', '5x0', '0x0']) assert.throws(() => grid('', { size: z }), /bad size=/, z);
+  assert.match(grid('', { size: '1x1', start: '2' }), /class="grid"/, 'start=2 is allowed, as the message says');
   // reversed ranges work like the rectangles do (either order); an unclosed quote is an error, not a label with a stray quote
   const cellsOn = (code, a) => (grid(code, a).match(/cell tint is-good/g) || []).length;
   assert.equal(cellsOn('C:A good', { size: '2x3' }), 6, 'a reversed column range');

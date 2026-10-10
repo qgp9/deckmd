@@ -73,9 +73,9 @@
 
   function parse(code, a) {
     const start = a.start != null ? +a.start : 0;
-    if (!Number.isInteger(start) || start < 0) throw new Error(`bad start="${a.start}": a whole number (0 or 1)`);
+    if (!Number.isInteger(start) || start < 0) throw new Error(`bad start="${a.start}": a whole number, 0 or more (0 or 1 are the usual)`);
     const size = /^(\d+)\s*x\s*(\d+)$/i.exec(a.size || '');
-    if (a.size != null && !size) throw new Error(`bad size="${a.size}": use size=ROWSxCOLUMNS (size=4x8)`);
+    if (a.size != null && (!size || +size[1] < 1 || +size[2] < 1)) throw new Error(`bad size="${a.size}": use size=ROWSxCOLUMNS (size=4x8)`);
     const dataLines = [], cmdLines = [];
     code.split('\n').forEach((raw, ln) => (/^\s*\|/.test(raw) ? dataLines : cmdLines).push([raw, ln]));
     const data = parseData(dataLines.map(([raw]) => raw));
