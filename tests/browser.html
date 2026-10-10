@@ -40,6 +40,22 @@ function parseCheck(d) {
   return true;
 }
 
+// DeckMD.slides(): where each slide is in the Markdown file. expected = [[startLine, endLine, notes?], …] in slide order
+function slidesCheck(expected) {
+  return (d) => {
+    const DM = d.defaultView.DeckMD;
+    const got = DM.slides();
+    const lines = DM.source.split(/\r?\n/);
+    const range = JSON.stringify(got.map(s => [s.startLine, s.endLine]));
+    if (range !== JSON.stringify(expected.map(e => [e[0], e[1]]))) return `ranges: ${range}`;
+    for (const [i, s] of got.entries()) {
+      if (s.source !== lines.slice(s.startLine - 1, s.endLine).join('\n')) return `slide ${i + 1}: source is not the file's lines`;
+      if (expected[i][2] != null && s.notes !== expected[i][2]) return `slide ${i + 1}: notes ${JSON.stringify(s.notes)}`;
+    }
+    return true;
+  };
+}
+
 // Deck list: view and &core links for each example deck. Checks for the decks that should be there, not a count (so adding examples doesn't break it)
 const LIST_DECKS = ['grid/talk.md', 'interactive/talk.md', 'math/talk.md', 'readme/rewrite.md', 'syntax/talk.md'];
 const mathCheck = d => {                                       // the math fixture: 3 formulas drawn (inline + block on slide 1, \(…\) on slide 3), 1 broken one in place
@@ -68,6 +84,12 @@ const CASES = [
   { group: 'syntax', name: '?core (defaultTier: core = slides without a tier stay)', url: `${R}?src=tests/fixtures/tiers/talk.md&core`, slides: 4 },
   { group: 'syntax', name: '?core + defaultTier=none (core slides only)', url: `${R}?src=tests/fixtures/tiers/talk.md&core&defaultTier=none`, slides: 2 },
   { group: 'syntax', name: '?core with no core slides shows all', url: `${R}?src=examples/grid/talk.md&core&defaultTier=none`, slides: 11 },
+  // DeckMD.slides(): the lines of each slide in the Markdown file (an editor jumps between the deck and the file with these)
+  { group: 'slide info', name: '--- slides: line ranges and notes (a Note: or --- inside a code block is not a split; a blank slide is skipped)', url: `${R}?src=tests/fixtures/lines/talk.md`, slides: 3, check: slidesCheck([[5, 10, 'say one'], [14, 24, 'say two'], [29, 29, '']]) },
+  { group: 'slide info', name: 'split by headings: a slide covers its heading and the blocks under it', url: `${R}?src=tests/fixtures/lines/readme.md`, slides: 4, check: slidesCheck([[1, 3], [5, 8], [10, 12], [14, 20]]) },
+  { group: 'slide info', name: 'split by headings, lines=2: continued slides start at their first block', url: `${R}?src=tests/fixtures/lines/readme.md&lines=2`, slides: 7, check: slidesCheck([[1, 1], [3, 3], [5, 8], [10, 12], [14, 16], [18, 18], [20, 20]]) },
+  { group: 'slide info', name: 'with the source plugin: only the real slides, not the source slides', url: `${R}?src=tests/fixtures/source/talk.md`, slides: 3, check: d => slidesCheck([[6, 11], [15, 19], [23, 25]])(d) === true && !d.defaultView.DeckMD.slides().some(s => s.section.classList.contains('source-slide')) || 'source slides are listed' },
+  { group: 'slide info', name: '?core: a cut slide is gone from the list', url: `${R}?src=tests/fixtures/source/talk.md&core&defaultTier=none`, slides: 1, check: slidesCheck([[23, 25]]) },
   { group: 'source', name: 'plugins: [source] → source slides under each slide, the front matter first under slide 1 (not under <!-- source: off -->; notes stay out, tags stay text, highlighted)', url: `${R}?src=tests/fixtures/source/talk.md`, slides: 3, notes: 1, check: d => {
       const src = [...d.querySelectorAll('.slides > section > section.source-slide code')].map(c => c.textContent);
       return (src.length === 3 && src[0].includes('title: source plugin test') && src[1].includes('# One') && src[1].includes('<b>tags</b>') && !src[1].includes('speaker note') && src[2].includes('tier: core') && !d.querySelector('.source-slide b') && d.querySelectorAll('.slides .source-slide code.hljs').length === 3)
