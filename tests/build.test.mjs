@@ -930,7 +930,7 @@ test('pack: examples inside code spans and fenced code blocks are not references
     'Use `<!-- bg: photo.jpg; tier: core -->` or ``![](span.png)`` to set things.', '',
     '```md', '![](fenced.png)', '<!-- bg: fenced-bg.jpg -->', '```', '',
     '~~~', '![](tilde.png)', '~~~', '',
-    '![](/tests/fixtures/assets/img/dot.svg)', ''].join('\n'));
+    'A stray ` backtick here,', '', '![](/tests/fixtures/assets/img/dot.svg)', '', 'and another ` one later.', ''].join('\n'));
   const { html, err } = make(path.relative(ROOT, path.join(dir, 'talk.md')), 'code-refs.html', '--offline');
   assert.doesNotMatch(err, /photo\.jpg|span\.png|fenced|tilde/, 'nothing reported as missing');
   const table = JSON.parse(/<script type="application\/json" id="deck-assets">([\s\S]*?)<\/script>/.exec(html)[1]);
