@@ -1,6 +1,7 @@
 // source plugin — under each slide, a slide with the Markdown it was made from (press ↓). plugins: [source] in the front matter. Docs: docs/plugins.md
 //   ?source=off          hide them for this viewing (the deck keeps the plugin)
 //   <!-- source: off --> in a slide: no source slide for that one
+// A slide that already is a vertical stack (a <section> inside it, written as raw HTML) is left alone: reveal has only two levels.
 // The source is the slide as written: its settings comment and content, without the speaker notes. A deck written in HTML has no Markdown, so nothing is added.
 (() => {
   DeckMD.loadCSS('source.css');
@@ -22,6 +23,7 @@
     arm();
     const text = DeckMD.sources.get(sec);
     if (off || text == null || sec.dataset.source === 'off') return;
+    if (sec.querySelector(':scope > section')) return;          // a vertical stack written inside the slide (raw HTML): reveal has two levels only, so leave it as it is
     const stack = document.createElement('section');          // a vertical stack: the slide, then its source below it
     const view = document.createElement('section');
     view.className = 'source-slide';

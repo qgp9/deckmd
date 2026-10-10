@@ -1044,6 +1044,12 @@ test('source plugin: a stack with the slide and a source slide under it; escaped
   assert.equal(code.querySelector('b'), null, 'tags are text, not elements');
   assert.equal(p.document.querySelectorAll('.source-slide').length, 1, 'not under data-source=off, not under a slide without Markdown');
   assert.equal(p.document.querySelectorAll('.slides > section').length, 3);
+  const own = p.slide('<!-- a slide that is a stack of its own -->');       // raw HTML <section>s inside a Markdown slide
+  own.innerHTML = '<section>top</section><section>below</section>';
+  p.run(own);
+  assert.ok(own.parentElement.classList.contains('slides'), 'still directly in .slides: not wrapped again');
+  assert.equal(own.children.length, 2);
+  assert.equal(p.document.querySelectorAll('.source-slide').length, 1, 'still just the one');
   const q = await sourcePlugin('?source=off');
   q.run(q.slide('# x'));
   assert.equal(q.document.querySelectorAll('.source-slide').length, 0, '?source=off');

@@ -84,7 +84,7 @@ plugins: [source]
 - The source slide has the slide as written: its settings comment (`<!-- class: center -->`) and content, **without the speaker notes**. It is highlighted as Markdown.
 - Off for one slide: `<!-- source: off -->` in that slide (it can go with other settings: `<!-- class: center; source: off -->`). Off for a viewing: add `?source=off` to the address. Off for the whole deck: don't list the plugin; then no code of it is loaded.
 - Slide numbers don't change (a source slide is a vertical slide: ↓, not →). Moving sideways always starts at the top slide of the next stack, never at a source you looked at last; a link to a source (`#/3/1`) works.
-- `?core` cuts a slide together with its source. A deck written in HTML has no Markdown, so it gets none.
+- `?core` cuts a slide together with its source. A deck written in HTML has no Markdown, so it gets none; a slide that is already a vertical stack (raw `<section>`s inside it) is left alone, since reveal.js has only two levels.
 - Printing (`?print-pdf`) prints the source slides too, as vertical slides do. Add `?source=off` to leave them out.
 - There is no button for it in the helper panel (E): it is something the deck's author turns on.
 
