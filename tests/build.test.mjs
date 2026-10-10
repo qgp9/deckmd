@@ -922,6 +922,21 @@ test("images starting with '/' are relative to the launcher page too (files outs
   assert.match(err, /\/\/example\.com/, 'protocol-relative URLs are reported as outside references');
 });
 
+test('pack: examples inside code spans and fenced code blocks are not references (no missing-file report)', () => {
+  const dir = path.join(OUT, 'code-refs');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'talk.md'), [
+    '---', 'title: t', '---', '', '## a', '',
+    'Use `<!-- bg: photo.jpg; tier: core -->` or ``![](span.png)`` to set things.', '',
+    '```md', '![](fenced.png)', '<!-- bg: fenced-bg.jpg -->', '```', '',
+    '~~~', '![](tilde.png)', '~~~', '',
+    'A stray ` backtick here,', '', '![](/tests/fixtures/assets/img/dot.svg)', '', 'and another ` one later.', ''].join('\n'));
+  const { html, err } = make(path.relative(ROOT, path.join(dir, 'talk.md')), 'code-refs.html', '--offline');
+  assert.doesNotMatch(err, /photo\.jpg|span\.png|fenced|tilde/, 'nothing reported as missing');
+  const table = JSON.parse(/<script type="application\/json" id="deck-assets">([\s\S]*?)<\/script>/.exec(html)[1]);
+  assert.deepEqual(Object.keys(table), ['/tests/fixtures/assets/img/dot.svg'], 'only the real image is embedded');
+});
+
 test('unpack: only user files back to their places; packing again gives the same result', () => {
   // The real-world layout: deckmd/ inside a presentation repository (here a link pointing to this repository)
   const repo = path.join(SANDBOX, 'unpack-repo');
