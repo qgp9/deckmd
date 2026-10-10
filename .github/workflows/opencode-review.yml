@@ -1,12 +1,19 @@
 name: opencode-review
 
-# Reviews a pull request when it is opened (or marked ready for review) and posts the review as a comment.
+# Reviews a pull request when it is opened, reopened or marked ready for review, and again on every push to its branch,
+# and posts the review as a comment. A push while a review is running cancels that review and starts a new one,
+# so push in response to a review rather than before it has finished. A review that is almost done when it is
+# cancelled can still post its comment, so each comment ends with the commit it reviewed.
 # The primary (free) model is tried first; if that step fails for any reason, the same review is run with the
 # fallback model. Reviews only post comments, so running one a second time is safe.
 # Pull requests from forks and drafts are skipped: forks get no secrets, so the review could not run.
 on:
   pull_request:
-    types: [opened, ready_for_review]
+    types: [opened, reopened, ready_for_review, synchronize]
+
+concurrency:
+  group: opencode-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   review:
@@ -45,7 +52,9 @@ jobs:
           share: false
           prompt: |
             ${{ env.REVIEW_PROMPT }}
-            End your comment with this exact line: `Model: ${{ env.PRIMARY_MODEL }}`
+            End your comment with these two exact lines:
+            `Commit: ${{ github.event.pull_request.head.sha }}`
+            `Model: ${{ env.PRIMARY_MODEL }}`
 
       # continue-on-error hides a failed primary step (the run stays green), so leave a visible trace.
       # A step killed by a timeout posts no comment at all, so this may be the only trace.
@@ -66,4 +75,6 @@ jobs:
           share: false
           prompt: |
             ${{ env.REVIEW_PROMPT }}
-            End your comment with this exact line: `Model: ${{ env.FALLBACK_MODEL }}`
+            End your comment with these two exact lines:
+            `Commit: ${{ github.event.pull_request.head.sha }}`
+            `Model: ${{ env.FALLBACK_MODEL }}`
