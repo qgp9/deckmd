@@ -5,7 +5,7 @@ theme: solarized
 plugins: [grid, source]
 ---
 
-<!-- class: center; source: off -->
+<!-- class: center -->
 
 # Cell diagrams and tables: ```` ```grid ````
 

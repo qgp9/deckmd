@@ -44,6 +44,7 @@
     md: null,          // markdown-it instance (plugins may call md.use(...))
     fences: {},        // code block language → (code, attrs, token) => HTML
     hooks: [],         // (section, deck) => void — after a slide is attached to the DOM
+    frontMatter: '',   // the front matter as written (--- … ---), '' if there is none. Only for a deck made from Markdown
     sources: new WeakMap(),   // section → the Markdown it was made from (slide settings comment + content, without the notes). Only for slides made from Markdown
     runs: {},          // name → (section) => cleanup function | void — when a slide with the slide setting run: name is shown
     srcUrl,
@@ -518,7 +519,7 @@
       let text;
       try { text = await getSource(); }
       catch (e) { fail(e.message); return; }
-      try { ({ meta, body } = splitFrontmatter(text)); }
+      try { ({ meta, body } = splitFrontmatter(text)); DeckMD.frontMatter = text.slice(0, text.length - body.length).trim(); }
       catch (e) { fail(`${srcPath} front matter (YAML): ${e.message}`); return; }
       DeckMD.source = text;
     }
