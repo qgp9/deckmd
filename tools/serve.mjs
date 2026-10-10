@@ -18,7 +18,7 @@ import path from 'node:path';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { findProject, isInside, NOT_FOUND } from './project.mjs';
+import { findProject, isInside, within, tooWide, shq, NOT_FOUND } from './project.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const USAGE = (lines => lines.slice(1, lines.findIndex(l => !l.startsWith('//'))).map(l => l.replace(/^\/\/ ?/, '')).join('\n'))(   // the top comment
@@ -52,18 +52,23 @@ export async function serve(args) {
 
   // Where we are: inside a deckmd project (the nearest launcher page upwards) or not
   const cwd = process.cwd();
-  const within = (child, base) => child === base || child.startsWith(base + path.sep);
   const found = findProject(cwd);
   const tree = !!found;
-  const home = (() => { try { return fs.realpathSync(os.homedir()); } catch { return null; } })();
-  const tooWide = real => real === path.parse(real).root || (home && within(home, real));
 
-  // What was named: Markdown files, and folders (every .md in them, two levels deep, never dot folders or node_modules)
+  // What was named: Markdown files, and folders (every .md in them, two levels deep, never dot folders or node_modules). A deck is under the top
+  // folder both as written and where it really is, and no part of its path below the top is a dot folder or node_modules (those are never served)
+  const top = tree ? found.root : cwd;
+  const realTop = fs.realpathSync(top);
+  const isMd = f => /\.(md|markdown)$/i.test(f);
+  const hidden = p => path.relative(top, p).split(path.sep).some(x => x.startsWith('.') || x === 'node_modules');
+  const realInside = f => { try { return within(fs.realpathSync(f), realTop) && within(fs.realpathSync(path.dirname(f)), realTop); } catch { return false; } };
   const scan = (dir, depth = 0) => fs.readdirSync(dir, { withFileTypes: true }).sort((x, y) => x.name.localeCompare(y.name)).flatMap(d => {
     if (d.name.startsWith('.') || d.name === 'node_modules') return [];
     const f = path.join(dir, d.name);
-    if (d.isDirectory()) return depth < 2 ? scan(f, depth + 1) : [];
-    return d.isFile() && /\.(md|markdown)$/i.test(d.name) ? [f] : [];
+    if (d.isDirectory()) return depth < 2 ? scan(f, depth + 1) : [];                                  // (a link to a folder is not followed: no loops)
+    let isFile = d.isFile();
+    if (d.isSymbolicLink()) { try { isFile = fs.statSync(f).isFile() && realInside(f); } catch { isFile = false; } }   // a link to a deck is, if it stays in the project
+    return isFile && isMd(d.name) ? [f] : [];
   });
   const files = [];
   for (const g of given) {
@@ -73,14 +78,15 @@ export async function serve(args) {
       const list = scan(f);
       if (!list.length) die(`no Markdown files in ${g}`);
       files.push(...list.map(x => ({ file: x, given: g })));
-    } else if (!/\.(md|markdown)$/i.test(f)) die(`serve takes Markdown files (.md) or folders, got: ${g}`);
+    } else if (!isMd(f)) die(`serve takes Markdown files (.md) or folders, got: ${g}`);
     else files.push({ file: f, given: g });
   }
   if (!tree && !files.length) die(`${NOT_FOUND}.\n  npx deckmd serve my-deck.md   show one deck (no project needed)\n  npx deckmd init                start a project here`);
   // The decks must be inside the project, or (without one) inside the current folder: the page is made at the top and only opens Markdown under it
-  const top = tree ? found.root : cwd;
   for (const { file, given: g } of files) {
-    if (!isInside(file, top)) die(`${g} is outside ${tree ? `the deckmd project at ${top}` : 'the current folder'}: the launcher page is ${tree ? 'there' : 'here'} and only opens Markdown under it.\nRun it from the deck's folder:  cd ${posix(path.relative(cwd, path.dirname(file)))} && npx deckmd serve ${path.basename(file)}`);
+    if (!isInside(file, top)) die(`${g} is outside ${tree ? `the deckmd project at ${top}` : 'the current folder'}: the launcher page is ${tree ? 'there' : 'here'} and only opens Markdown under it.\nRun it from the deck's folder:  cd ${shq(posix(path.relative(cwd, path.dirname(file))) || '.')} && npx deckmd serve ${shq(path.basename(file))}`);
+    if (hidden(file)) die(`${g} is in a dot folder or node_modules, which are never served`);
+    if (!realInside(file)) die(`${g} is a symbolic link that leaves ${tree ? 'the deckmd project' : 'the current folder'}`);
   }
   const only = [...new Set(files.map(f => f.file))];
 
@@ -113,7 +119,7 @@ export async function serve(args) {
   const where = (p) => { const lexical = posix(path.relative(root, p)); let real = lexical; try { real = posix(path.relative(realRoot, fs.realpathSync(p))); } catch {} return real.startsWith('..') ? [lexical] : [lexical, real]; };
   const deckDirs = [...new Set(only.flatMap(f => where(path.dirname(f))))];
   const deckFiles = new Set(only.flatMap(where));
-  const deckReal = new Set(only.flatMap(f => { try { return [fs.realpathSync(f)]; } catch { return []; } }));   // a deck that is a link to a file elsewhere is still the deck you named
+  const deckReal = new Set(tree ? [] : only.flatMap(f => { try { return [fs.realpathSync(f)]; } catch { return []; } }));   // a deck that is a link to a file elsewhere is still the deck you named
   const deckDirReal = tree ? [] : [...new Set(only.flatMap(f => { try { return [fs.realpathSync(path.dirname(f))]; } catch { return []; } }))];   // without a project: where the deck folders really are
   const notServed = (parts, isDir) => {                                                              // why a path is not served, or null if it is
     if (parts.includes('node_modules')) return 'node_modules is not served';

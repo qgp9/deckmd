@@ -2,8 +2,8 @@
 // Pack / unpack a deck — the same job as the E key in the browser, from the command line.
 //
 //   npx deckmd init [dir] [--cdn | --repo] [--single | --multi]   start a deck (index.html + slides.md) or a talks repository (slides/<name>/deck.md)  (npx deckmd init --help)
-//   npx deckmd add <name> [title]               add a deck to a --multi repository: slides/<name>/deck.md from the starter  (npx deckmd add --help)
-//   npx deckmd serve [file.md …] [--port N] [--open]   a web server to write with: one deck, a deck list, or the current folder as it is  (npx deckmd serve --help)
+//   npx deckmd add <name> [title]               add a deck: slides/<name>/deck.md in a project (or ./<name>.md without one) from the starter  (npx deckmd add --help)
+//   npx deckmd serve [file.md|folder …] [--port N] [--open]   a web server to write with: the project, one deck, a deck list or the decks in a folder  (npx deckmd serve --help)
 //   node tools/build.mjs talk.md [--offline]    → <deck folder>/dist/<name>.offline.html   one file with everything inside (opens without internet, default)
 //   node tools/build.mjs talk.md --share        → <deck folder>/dist/<name>.share.html     libraries and fonts from the CDN (small, needs internet)
 //   node tools/build.mjs index.html             a page with slides written directly works too (that page is the launcher page)
@@ -16,7 +16,7 @@
 //   --force    overwrite the output if it exists (otherwise an error). Never the originals (input, launcher page, config), even with --force
 //
 // Packing opens the launcher page in jsdom like a browser: boot.js → deck.js → pack.js run as is, and the result is the same as the E key (one set of rules, in pack.js).
-//   Launcher page: for a .md input, index.html in the current folder (repository top), else a one-line boot.js page. For .html, that page
+//   Launcher page: for a .md input, the index.html of the project (found from the current folder upwards; or in the current folder), else a one-line boot.js page. For .html, that page
 //   Files are read from disk. Libraries (CDN URLs) from the local copy in vendor/ if there is one, else from the internet.
 //   If the launcher page loads deckmd from the CDN (…/npm/deckmd@version/…), this folder's files are used when the version matches this deckmd
 //   Needs jsdom (Node 22 or later): npm install in the deckmd folder (not needed for unpacking)
@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { findProject, isInside, isLauncher } from './project.mjs';
+import { findProject, isInside, isLauncher, shq } from './project.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MODES = ['offline', 'share'];
@@ -77,7 +77,7 @@ async function pack() {
   const project = /\.html?$/i.test(INPUT) ? null : findProject(process.cwd());
   const baseDir = project ? project.root : process.cwd();
   if (!/\.html?$/i.test(INPUT) && !isInside(INPUT, baseDir)) {
-    console.error(`${inputs[0]} is outside ${project ? `the deckmd project at ${show(baseDir)}` : 'the current folder'}: the launcher page is ${project ? 'there' : 'here'} and only opens Markdown under it.\nRun it from the deck's folder:  cd ${show(path.dirname(INPUT))} && npx deckmd ${path.basename(INPUT)}`);
+    console.error(`${inputs[0]} is outside ${project ? `the deckmd project at ${show(baseDir)}` : 'the current folder'}: the launcher page is ${project ? 'there' : 'here'} and only opens Markdown under it.\nRun it from the deck's folder:  cd ${shq(show(path.dirname(INPUT)))} && npx deckmd ${shq(path.basename(INPUT))}`);
     process.exit(1);
   }
   let jsdom;
