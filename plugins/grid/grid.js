@@ -146,7 +146,9 @@
     const p = parse(code, a);
     const { rows, cols, start, cells } = p;
     const id = a.id || 'g', head = 'head' in a, index = 'index' in a;
-    const kind = as || String(a.as ?? 'grid').trim().toLowerCase();
+    const given = a.as == null ? null : String(a.as).trim().replace(/^["']|["']$/g, '').trim().toLowerCase();    // as=Table, as=" table ", as="table"
+    if (as && given && given !== as) throw new Error(`as=${a.as}: this block is a ${as}`);
+    const kind = as || given || 'grid';
     if (kind === 'table') return renderTable(p, id);
     if (kind !== 'grid') throw new Error(`as=${kind}: use as=table, or leave it out for a grid`);
     const style = [`--cols:${cols}`, a.h ? `--grid-h:${+a.h}px` : ''].filter(Boolean).join(';');
