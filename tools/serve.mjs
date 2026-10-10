@@ -60,7 +60,7 @@ export async function serve(args) {
   const top = tree ? found.root : cwd;
   const realTop = fs.realpathSync(top);
   const isMd = f => /\.(md|markdown)$/i.test(f);
-  const hidden = p => path.relative(top, p).split(path.sep).some(x => x.startsWith('.') || x === 'node_modules');
+  const hidden = p => path.relative(top, p).split(path.sep).some(x => x !== '..' && (x.startsWith('.') || x === 'node_modules'));
   const realInside = f => { try { return within(fs.realpathSync(f), realTop) && within(fs.realpathSync(path.dirname(f)), realTop); } catch { return false; } };
   const scan = (dir, depth = 0) => fs.readdirSync(dir, { withFileTypes: true }).sort((x, y) => x.name.localeCompare(y.name)).flatMap(d => {
     if (d.name.startsWith('.') || d.name === 'node_modules') return [];
@@ -98,7 +98,7 @@ export async function serve(args) {
 
   // The project's page and config. It is served as it is; the decks you named only choose what to show
   const indexHtml = tree ? fs.readFileSync(found.index, 'utf8').replace(/<!--[\s\S]*?-->/g, '') : '';    // without the comments about it
-  const bootTag = /<script\b[^>]*\b(?:boot|deck)\.js[^>]*>/.exec(indexHtml)?.[0] || '';                  // the real tag, not the comments about it
+  const bootTag = /<script\b[^>]*\ssrc\s*=\s*["'][^"']*\b(?:boot|deck)\.js[^>]*>/i.exec(indexHtml)?.[0] || '';                  // the real tag, not the comments about it
   const configName = /\bdata-config="([^"]*)"/.exec(bootTag)?.[1] || 'deck.config.js';              // the config its index.html loads
   const configOk = /^[\w.-][\w./-]*$/.test(configName) && !configName.includes('..');                // a file in this folder; 'none' or a URL can't be extended
   const hasConfig = tree && configOk && fs.existsSync(path.join(root, configName));

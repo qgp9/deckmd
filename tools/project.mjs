@@ -24,7 +24,7 @@ export const shq = s => /^[\w@%+=:,./-]+$/.test(s) ? s : `'${String(s).replace(/
 export function isLauncher(html) {
   const page = String(html).replace(/<!--[\s\S]*?-->/g, '');                                                          // not the comments about it
   const loadsDeckmd = /<script\b[^>]*\ssrc\s*=\s*["'](?:[^"']*\/)?(?:boot|deck)\.js(?:[?#][^"']*)?["']/i.test(page);
-  const hasDeckInside = /<section\b/i.test(page) || /<script\b[^>]*\btype\s*=\s*["']text\/markdown["']/i.test(page) || /<script\b[^>]*\bid\s*=\s*["']deck-meta["']/i.test(page);
+  const hasDeckInside = /<section\b/i.test(page) || /<script\b[^>]*\stype\s*=\s*["']text\/markdown["']/i.test(page) || /<script\b[^>]*\sid\s*=\s*["']deck-meta["']/i.test(page);
   return loadsDeckmd && !hasDeckInside;
 }
 
