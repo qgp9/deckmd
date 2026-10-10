@@ -937,6 +937,38 @@ test('pack: examples inside code spans and fenced code blocks are not references
   assert.deepEqual(Object.keys(table), ['/tests/fixtures/assets/img/dot.svg'], 'only the real image is embedded');
 });
 
+// The grid plugin's fence functions run on their own (no browser): DeckMD is stubbed with what the plugin uses
+function gridFences() {
+  const fences = {};
+  const DeckMD = { esc: s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), loadCSS() {}, registerFence: (n, f) => { fences[n] = f; },
+    md: { renderInline: s => s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') } };
+  new Function('DeckMD', fs.readFileSync(path.join(ROOT, 'plugins/grid/grid.js'), 'utf8'))(DeckMD);
+  return fences;
+}
+
+test('grid: data lines fill the cells (Markdown inside), commands add colors; as=table and ```table draw a <table>', () => {
+  const { grid, table } = gridFences();
+  const code = ['| Name | Q1 | Q2 |', '|:-----|---:|:--:|', '| A | 10 | 12 |', 'B3:C3 good', '| B | 7 | **9** |', 'A2 !', 'C1 "x|y"'].join('\n');
+  const t = table(code, { id: 't' });
+  assert.match(t, /^<table class="grid-table"><thead><tr><th class="cell"[^>]*text-align:left[^>]*>Name<\/th>/, 'the first row is the header when there is a |---| line');
+  assert.match(t, /<td class="cell tint is-good" data-id="t-7" style="text-align:right">7<\/td><td class="cell tint is-good" data-id="t-8" style="text-align:center"><strong>9<\/strong><\/td>/, 'B3:C3 is row 3, columns B and C: the header row counts as row 1');
+  assert.match(t, /<td class="cell hl" data-id="t-3" style="text-align:left">A<\/td>/, 'A2 highlighted, column A is left-aligned');
+  assert.match(t, /style="text-align:right">10<\/td>/);
+  assert.match(t, /<th class="cell" data-id="t-2" style="text-align:center">x\|y<\/th>/, 'a command label is plain text');
+  assert.equal(grid(code, { id: 't', as: 'table' }), t, 'as=table is the same as ```table');
+  const g = grid(code, { id: 'g' });
+  assert.match(g, /^<div class="grid" style="--cols:3">/);
+  assert.match(g, /<b><strong>9<\/strong><\/b>/, 'Markdown in a data cell');
+  assert.match(g, /is-good/);
+  assert.equal((g.match(/class="cell/g) || []).length, 9, 'a grid of the data: 3 rows x 3 columns, the |---| line is not a row');
+  // no separator line: no header; more commands than data grow the table; an empty one is all empty cells
+  assert.doesNotMatch(table('| a | b |\n| c | d |', {}), /<thead>/);
+  assert.match(table('| a | b |\nB4 end', {}), /data-id="g-7"[^>]*>end<\/td>/);
+  assert.equal((table('', { size: '2x3' }).match(/<td/g) || []).length, 6);
+  assert.throws(() => table('| a | b | c |', { size: '1x2' }), /3|size/);
+  assert.throws(() => grid('A1 x', { as: 'list' }), /as=list/);
+});
+
 test('unpack: only user files back to their places; packing again gives the same result', () => {
   // The real-world layout: deckmd/ inside a presentation repository (here a link pointing to this repository)
   const repo = path.join(SANDBOX, 'unpack-repo');

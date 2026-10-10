@@ -1,6 +1,6 @@
 // grid plugin — cell (N×M) diagrams. plugins: [grid] in the front matter. Syntax: docs/plugins.md
 //
-// ```grid {size=4x8 id=g index head start=1 h=90}
+// ```grid {size=4x8 id=g index head start=1 h=90}      (```grid {as=table} or ```table: the same cells as a <table>)
 // 0          list   !        // cells, text, color, ! = highlight. Later lines override earlier ones
 // 1-3        A#     cool     // # = running number within this line (A1 A2 A3), \# = the character #
 // B2:C3      "two words" bad // Excel-style rectangle. Quote text with spaces
@@ -8,6 +8,7 @@
 // 2,5,6      _               // _ = clear the text
 // 8> 3 4 end! · 7            // fill in order from cell 8. A trailing ! highlights that cell
 // ```
+//   Lines that start with | are data (a Markdown table, shown as the cells; **bold** and `code` work in them); the others are the commands above, in any order
 //   Cell numbers: left→right, top→bottom from 0 (from 1 with start=1). Excel-style addresses (A1, B2:C3, 3:3, C:C) always start at 1
 //   size=RxC (if absent cols=16, rows fit the cells given) · index = show cell numbers · head = column letters and row numbers · h = cell height (px)
 //   colors: accent cool good bad warn muted (theme variables) or a color value like #5ccfe6
@@ -47,14 +48,33 @@
     return [out, need];
   }
 
+  // Lines that start with | are the data (a Markdown table: cells, an optional |---|:--:| line for alignment and for a header row); the other lines are
+  // the commands. The cells are filled from the data first, then the commands change them, wherever they stand among the data lines.
+  const splitRow = line => line.trim().replace(/^\|/, '').replace(/(?<!\\)\|$/, '').split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, '|'));
+  function parseData(lines) {
+    const rows = lines.map(splitRow);
+    let align = null, header = false;
+    if (rows.length > 1 && rows[1].every(c => /^:?-+:?$/.test(c))) {
+      align = rows[1].map(c => (c.startsWith(':') ? (c.endsWith(':') ? 'center' : 'left') : c.endsWith(':') ? 'right' : null));
+      rows.splice(1, 1);
+      header = true;
+    }
+    return { rows, align, header, cols: Math.max(0, ...rows.map(r => r.length)) };
+  }
+
   function parse(code, a) {
     const start = a.start != null ? +a.start : 0;
     const size = /^(\d+)\s*x\s*(\d+)$/i.exec(a.size || '');
-    const cols = size ? +size[2] : +(a.cols || 16);
+    const dataLines = [], cmdLines = [];
+    code.split('\n').forEach((raw, ln) => (/^\s*\|/.test(raw) ? dataLines : cmdLines).push([raw, ln]));
+    const data = parseData(dataLines.map(([raw]) => raw));
+    const cols = size ? +size[2] : data.cols || +(a.cols || 16);
     let rows = size ? +size[1] : 0;
+    if (data.rows.length && (data.cols > cols || (size && data.rows.length > rows))) throw new Error(`the table is ${data.rows.length}x${data.cols} but size=${a.size}`);
+    const known = rows || data.rows.length;                  // rows known before the commands are read (whole rows and columns need it)
     const set = [];                                      // [cell numbers, {label?, color?, hl?}] in order
     let need = 1;
-    code.split('\n').forEach((raw, ln) => {
+    cmdLines.forEach(([raw, ln]) => {
       const line = raw.replace(/(^|\s)\/\/.*$/, '').trim();
       if (!line) return;
       const where = `line ${ln + 1}`;
@@ -65,16 +85,16 @@
         const fill = spec.endsWith('>');
         if (fill) {                                      // 8> a b c — fill in order
           spec = spec.slice(0, -1);
-          const [[first], n] = cellsOf(spec, cols, rows, start);
+          const [[first], n] = cellsOf(spec, cols, known, start);
           tok.forEach((t, k) => {
             const hl = /[^\\]!$/.test(t) || t === '!';
             const label = t.replace(/!$/, '').replace(/\\!$/, '!').replace(/^"|"$/g, '');
-            set.push([[first + k], { label: label === '_' ? '' : label, ...(hl ? { hl } : {}) }]);
+            set.push([[first + k], { label: label === '_' ? '' : label, md: false, ...(hl ? { hl } : {}) }]);
             need = Math.max(need, n, Math.floor((first + k) / cols) + 1);
           });
           return;
         }
-        const [idx, n] = cellsOf(spec, cols, rows, start);
+        const [idx, n] = cellsOf(spec, cols, known, start);
         need = Math.max(need, n);
         const opt = {};
         if (tok[tok.length - 1] === '!') { tok.pop(); opt.hl = true; }
@@ -82,6 +102,7 @@
         if (tok.length) {
           const label = tok.map(t => t.replace(/^"|"$/g, '')).join(' ');
           opt.label = label === '_' ? '' : label;
+          opt.md = false;                                // typed here: plain text, not Markdown
         }
         idx.forEach((i, k) => {
           const o = { ...opt };
@@ -90,27 +111,46 @@
         });
       } catch (e) { throw new Error(`${where}: ${e.message}`); }
     });
-    rows = rows || need;
-    const cells = Array.from({ length: rows * cols }, () => ({ label: '', color: null, hl: false }));
+    rows = rows || Math.max(need, data.rows.length);
+    const cells = Array.from({ length: rows * cols }, () => ({ label: '', color: null, hl: false, md: false }));
+    data.rows.forEach((row, r) => row.forEach((text, c) => Object.assign(cells[r * cols + c], { label: text, md: true })));
     for (const [idx, o] of set) {
       for (const i of idx) {
         if (i >= cells.length) throw new Error(`cell ${i + start} is outside the grid (${rows}x${cols})`);
         Object.assign(cells[i], o);
       }
     }
-    return { rows, cols, start, cells };
+    return { rows, cols, start, cells, align: data.align, header: data.header };
   }
 
-  DeckMD.registerFence('grid', (code, a) => {
-    const { rows, cols, start, cells } = parse(code, a);
+  // The cell text: from the data lines it is Markdown (**bold**, `code`, links); typed in a command it is plain text
+  const inner = c => (c.md ? DeckMD.md.renderInline(c.label) : esc(c.label));
+  const cellAttrs = (c, id, i, extra = []) => {
+    const named = c.color && NAMED.includes(c.color);
+    const cls = ['cell', c.color ? 'tint' : '', named ? `is-${c.color}` : '', c.hl ? 'hl' : '', c.label ? '' : 'empty'].filter(Boolean).join(' ');
+    const style = [...extra, c.color && !named ? `--c:${esc(c.color)}` : ''].filter(Boolean).join(';');
+    return `class="${cls}" data-id="${esc(id)}-${i}"${style ? ` style="${style}"` : ''}`;
+  };
+
+  // as=table: the same cells in a <table> (text that wraps, copy and paste, screen readers); the first data row is the header when there is a |---| line
+  function renderTable(p, id) {
+    const row = (r, tag) => `<tr>${Array.from({ length: p.cols }, (_, c) => {
+      const i = r * p.cols + c, cell = p.cells[i], al = p.align?.[c];
+      return `<${tag} ${cellAttrs(cell, id, i, al ? [`text-align:${al}`] : [])}>${inner(cell)}</${tag}>`;
+    }).join('')}</tr>`;
+    const body = Array.from({ length: p.rows }, (_, r) => r).filter(r => !(p.header && r === 0));
+    return `<table class="grid-table">${p.header ? `<thead>${row(0, 'th')}</thead>` : ''}<tbody>${body.map(r => row(r, 'td')).join('')}</tbody></table>\n`;
+  }
+
+  function render(code, a, as) {
+    const p = parse(code, a);
+    const { rows, cols, start, cells } = p;
     const id = a.id || 'g', head = 'head' in a, index = 'index' in a;
+    const kind = as || a.as || 'grid';
+    if (kind === 'table') return renderTable(p, id);
+    if (kind !== 'grid') throw new Error(`as=${kind}: use as=table, or leave it out for a grid`);
     const style = [`--cols:${cols}`, a.h ? `--grid-h:${+a.h}px` : ''].filter(Boolean).join(';');
-    const cell = (c, i) => {
-      const named = c.color && NAMED.includes(c.color);
-      const cls = ['cell', c.color ? 'tint' : '', named ? `is-${c.color}` : '', c.hl ? 'hl' : '', c.label ? '' : 'empty'].filter(Boolean).join(' ');
-      const st = c.color && !named ? ` style="--c:${esc(c.color)}"` : '';
-      return `<div class="${cls}" data-id="${esc(id)}-${i}"${st}>${index ? `<i>${i + start}</i>` : ''}<b>${esc(c.label)}</b></div>`;
-    };
+    const cell = (c, i) => `<div ${cellAttrs(c, id, i)}>${index ? `<i>${i + start}</i>` : ''}<b>${inner(c)}</b></div>`;
     let body = '';
     if (head) body += '<span class="gh"></span>' + Array.from({ length: cols }, (_, c) => `<span class="gh">${letters(c)}</span>`).join('');
     for (let r = 0; r < rows; r++) {
@@ -118,5 +158,7 @@
       body += cells.slice(r * cols, (r + 1) * cols).map((c, k) => cell(c, r * cols + k)).join('');
     }
     return `<div class="grid${head ? ' with-head' : ''}" style="${style}">${body}</div>\n`;
-  });
+  }
+  DeckMD.registerFence('grid', (code, a) => render(code, a));
+  DeckMD.registerFence('table', (code, a) => render(code, a, 'table'));            // ```table = ```grid {as=table}
 })();

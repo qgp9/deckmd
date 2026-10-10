@@ -11,7 +11,7 @@ The lists from the front matter and from `deck.config.js` are merged (the same f
 
 ## Built-in: grid
 
-Diagrams made of cells laid out N×M: arrays, memory, boards, calendars, seating charts. Example deck: [`examples/grid/`](../examples/grid/talk.md).
+Diagrams made of cells laid out N×M: arrays, memory, boards, calendars, seating charts. The same cells can also be drawn as a table with data in it (see [Data and tables](#data-and-tables)). Example deck: [`examples/grid/`](../examples/grid/talk.md).
 
 ````markdown
 ```grid {size=2x8 index id=mem}
@@ -49,6 +49,29 @@ B2:D2    "two words" bad      // Excel-style rectangle. Quote text containing sp
 | `id=mem` | Gives each cell `data-id="mem-number"`. If the neighboring slides use `auto-animate`, matching cells animate into each other (default `g`; use different ids for two grids on one slide) |
 
 A malformed line shows a red box in its place that says which line is wrong.
+
+### Data and tables
+
+Lines that start with `|` are **data**: a Markdown table whose cells fill the grid (`**bold**`, `` `code` `` and links work in them). The other lines are the commands above, applied on top, in any order among the data lines. Without `size` the grid is as big as the data.
+
+````markdown
+```table
+| Name  | Q1 | Q2     |
+|:------|---:|-------:|
+| Alpha | 10 | 12     |
+| Beta  | 7  | **15** |
+
+B3 !            // Excel-style addresses: the header row is row 1
+C2:C3 good
+A2:A3 accent
+```
+````
+
+- `` ```grid `` draws `<div>` cells. `` ```grid {as=table} `` draws a real `<table>`, and `` ```table `` is the same thing: text wraps, columns size to their content, and it copies, prints and reads out like a table. Colors, `!`, `id` and `data-id` (auto-animate) work in both.
+- The first data row is the **header** (`<thead>`) when the second line is a `|---|` line. That line also sets the alignment: `:---` left, `:---:` center, `---:` right. It is not a row; cell addresses count the header as row 1.
+- Text typed in a command line (`A1 hello`) is plain text; text from the data lines is Markdown.
+- `size` can be bigger than the data (empty cells) but not smaller. `index`, `head`, `start` and `h` are for the `<div>` grid; a table ignores them.
+- A table that is already written as plain Markdown (or `<table>`) is not converted. Write it in the fence, or color a cell of it with `{.y}` `{.n}` `{.m}` at the end of the cell text.
 
 ## Writing a plugin
 
