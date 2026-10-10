@@ -81,6 +81,7 @@ export async function serve(args) {
   const project = files.length > 0 && (validIndex || hasConfig) && configOk && configName !== 'none';   // the project's settings apply to the files you gave
   const ownIndex = project && validIndex;                                                              // the project's index.html is the page
   const root = cwd;
+  const realRoot = fs.realpathSync(root);
   const decks = files.map(f => ({ src: posix(path.relative(root, f)) }));
   const configUrl = ownIndex ? `/${posix(path.normalize(configName))}` : null;                      // where the page asks for its config
   const makeConfig = () => {                                                                         // read on every request: edit deck.config.js, reload
@@ -95,11 +96,16 @@ export async function serve(args) {
   // What is served. File types, everywhere: slide text, web files, images, fonts, media, data (no keys, certificates, databases, archives, files without an extension).
   // In a project: everything under the current folder, of those types. Without one: the folder of each deck you named in full, top-level *.css, and themes/ css/ js/ plugins/
   const FIXED_DIRS = new Set(['themes', 'css', 'js', 'plugins']);
-  const deckDirs = files.map(f => posix(path.relative(cwd, path.dirname(f))));                       // '' = the current folder itself
+  // The folder of each deck, and the deck itself: as written, and where it really is (a deck may be reached through a link inside the folder).
+  // '' = the current folder itself
+  const where = (p) => { const lexical = posix(path.relative(cwd, p)); let real = lexical; try { real = posix(path.relative(realRoot, fs.realpathSync(p))); } catch {} return real.startsWith('..') ? [lexical] : [lexical, real]; };
+  const deckDirs = [...new Set(files.flatMap(f => where(path.dirname(f))))];
+  const deckFiles = new Set(files.flatMap(where));
   const notServed = (parts, isDir) => {                                                              // why a path is not served, or null if it is
     if (!isDir && !SERVED_TYPES.has(path.extname(parts[parts.length - 1] || '').toLowerCase())) return 'this file type is not served';
     if (validIndex) return null;
     const rel = parts.join('/');
+    if (deckFiles.has(rel)) return null;
     if (deckDirs.some(d => d === '' || rel === d || rel.startsWith(`${d}/`))) return null;
     if (parts.length === 1 && !isDir && /\.css$/i.test(rel)) return null;
     if (FIXED_DIRS.has(parts[0])) return null;
@@ -124,7 +130,6 @@ export async function serve(args) {
   };
   // Symbolic links are followed only while the real path stays inside the served folder, or in the public folders of deckmd's own package
   // (js, css, themes, plugins: so a deckmd/ link to the package works, but not package.json, .git, tools …)
-  const realRoot = fs.realpathSync(root);
   const packagePublic = [...PACKAGE_DIRS].map(d => path.join(fs.realpathSync(ROOT), d));
   const insideOf = (real, base) => real === base || real.startsWith(base + path.sep);
   // The policy again for where a path really ends up: a link must not lead to what the policy hides (a dot folder, another folder, a key file
@@ -147,12 +152,39 @@ export async function serve(args) {
     try { send(req, res, 200, TYPES['.js'], makeConfig()); }
     catch (e) { text(req, res, e.status || (e.code === 'ENOENT' ? 404 : 500), e.status ? e.message : e.code === 'ENOENT' ? 'Not found' : 'Server error'); }
   };
-  const resolveInside = (file, bases, done) => fs.realpath(file, (err, real) => (err ? done(404) : bases.some(b => insideOf(real, b)) ? done(null, real) : done(403)));
-
   const send = (req, res, code, type, body) => { res.writeHead(code, { 'content-type': type, 'cache-control': 'no-cache' }); res.end(req.method === 'HEAD' ? undefined : body); };
   const text = (req, res, code, msg) => send(req, res, code, 'text/plain; charset=utf-8', `${msg}\n`);
-  const sendFile = (req, res, file) => fs.readFile(file, (err, buf) => (err ? text(req, res, 404, 'Not found') : send(req, res, 200, TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream', buf)));
-  const serveFile = (req, res, file, bases) => resolveInside(file, bases, (code, real) => (code ? text(req, res, code, code === 403 ? 'Forbidden: a symbolic link that leaves the served folder' : 'Not found') : sendFile(req, res, real)));
+  const LEAVES = 'Forbidden: a symbolic link that leaves the served folder';
+  // Where a path really ends up, if that is inside one of the bases: { real }, else { code } (404 if it isn't there, 403 if a link leads out)
+  const resolveInside = async (file, bases) => {
+    let real;
+    try { real = await fs.promises.realpath(file); } catch { return { code: 404 }; }
+    return bases.some(b => insideOf(real, b)) ? { real } : { code: 403 };
+  };
+  // A file, streamed (a deck may have hundreds of MB of video), with Range requests: browsers need them to seek in <video>, and Safari won't play without them
+  const sendFile = async (req, res, real) => {
+    let st;
+    try { st = await fs.promises.stat(real); } catch { return text(req, res, 404, 'Not found'); }
+    if (!st.isFile()) return text(req, res, 404, 'Not found');
+    const headers = { 'content-type': TYPES[path.extname(real).toLowerCase()] || 'application/octet-stream', 'cache-control': 'no-cache', 'accept-ranges': 'bytes' };
+    let start = 0, end = st.size - 1, code = 200;
+    const m = /^bytes=(\d*)-(\d*)$/.exec((req.headers.range || '').trim());                     // one range; anything else (several ranges, bad syntax) is ignored: the whole file
+    if (m && (m[1] !== '' || m[2] !== '')) {
+      if (m[1] === '') { start = Math.max(0, st.size - Number(m[2])); end = st.size - 1; if (Number(m[2]) === 0) start = st.size; }   // bytes=-N: the last N
+      else { start = Number(m[1]); end = m[2] === '' ? st.size - 1 : Math.min(Number(m[2]), st.size - 1); }
+      if (start > end || start >= st.size) { res.writeHead(416, { ...headers, 'content-range': `bytes */${st.size}` }); return res.end(); }
+      code = 206;
+      headers['content-range'] = `bytes ${start}-${end}/${st.size}`;
+    }
+    headers['content-length'] = st.size === 0 ? 0 : end - start + 1;
+    res.writeHead(code, headers);
+    if (req.method === 'HEAD' || st.size === 0) return res.end();
+    fs.createReadStream(real, { start, end }).on('error', () => res.destroy()).pipe(res);
+  };
+  const serveFile = async (req, res, file, bases) => {
+    const got = await resolveInside(file, bases);
+    return got.code ? text(req, res, got.code, got.code === 403 ? LEAVES : 'Not found') : sendFile(req, res, got.real);
+  };
   const listing = (dir, urlPath, parts) => {
     // Each entry is judged by where it really leads (a link to a hidden folder or a key file is not listed), and a link to a folder is shown as a folder
     const entries = [];
@@ -168,11 +200,13 @@ export async function serve(args) {
     return `<!doctype html>\n<meta charset="utf-8"><title>Index of ${esc(urlPath)}</title>\n<h1>Index of ${esc(urlPath)}</h1>\n<ul>\n${rows.join('\n')}\n</ul>\n`;   // deck.js reads the links of this page to find decks (scan)
   };
 
-  const server = http.createServer((req, res) => {
+  // One place that catches whatever goes wrong while answering a request, so a request can never end the server (an unreadable folder, a
+  // header the answer can't carry, a file that vanished mid-way): it answers 500, or 403/404 when the cause is known
+  const handle = async (req, res) => {
     if (!hostAllowed(req.headers.host)) return text(req, res, 403, 'Forbidden: use http://localhost or the IP address (this Host is neither; a DNS rebinding attack looks like this)');
     if (req.method !== 'GET' && req.method !== 'HEAD') return text(req, res, 405, 'Method not allowed');
-    let pathname;
-    try { pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname); } catch { return text(req, res, 400, 'Bad request'); }
+    let pathname, encoded;
+    try { encoded = new URL(req.url, 'http://localhost').pathname; pathname = decodeURIComponent(encoded); } catch { return text(req, res, 400, 'Bad request'); }
     const parts = pathname.split('/').filter(Boolean);
     if (pathname.includes('\0') || parts.some(p => p.startsWith('.') || p.includes('\\'))) return text(req, res, 404, 'Not found');   // '..', .git, .env …
 
@@ -184,18 +218,28 @@ export async function serve(args) {
     if (configUrl && pathname === configUrl) return sendConfig(req, res);   // the project's page asks for its own config
     if (files.length && !ownIndex && (pathname === '/' || pathname === '/index.html')) return send(req, res, 200, TYPES['.html'], launcher);
     const target = path.join(root, ...parts);
-    resolveInside(target, [realRoot, ...packagePublic], (code, real) => {
-      if (code) return text(req, res, code, code === 403 ? 'Forbidden: a symbolic link that leaves the served folder' : 'Not found');
-      fs.stat(real, (err, st) => {
-        if (err) return text(req, res, 404, 'Not found');
-        const why = notServed(parts, st.isDirectory()) || realWhy(real, st.isDirectory());       // the path asked for, and where it really is
-        if (why) return text(req, res, 404, `Not found (not served: ${why})`);
-        if (!st.isDirectory()) return sendFile(req, res, real);
-        if (!pathname.endsWith('/')) { res.writeHead(301, { location: `${pathname}/` }); return res.end(); }
-        const index = path.join(target, 'index.html');
-        if (fs.existsSync(index) && !notServed([...parts, 'index.html'], false)) return resolveInside(index, [realRoot, ...packagePublic], (c, r) => (c || realWhy(r, false) ? text(req, res, 404, 'Not found') : sendFile(req, res, r)));
-        send(req, res, 200, TYPES['.html'], listing(real, pathname, parts));
-      });
+    const got = await resolveInside(target, [realRoot, ...packagePublic]);
+    if (got.code) return text(req, res, got.code, got.code === 403 ? LEAVES : 'Not found');
+    const st = await fs.promises.stat(got.real);
+    const why = notServed(parts, st.isDirectory()) || realWhy(got.real, st.isDirectory());       // the path asked for, and where it really is
+    if (why) return text(req, res, 404, `Not found (not served: ${why})`);
+    if (!st.isDirectory()) return sendFile(req, res, got.real);
+    // A folder without its trailing slash: redirect from the path as it was sent (still percent-encoded, one leading slash). The decoded
+    // path can't go into a header: non-ASCII throws, and #, ?, % or a leading // would point somewhere else
+    if (!encoded.endsWith('/')) { res.writeHead(301, { location: `/${encoded.replace(/^\/+/, '')}/` }); return res.end(); }
+    if (!notServed([...parts, 'index.html'], false)) {
+      const idx = await resolveInside(path.join(target, 'index.html'), [realRoot, ...packagePublic]);
+      if (!idx.code) return realWhy(idx.real, false) ? text(req, res, 404, 'Not found') : sendFile(req, res, idx.real);
+      if (idx.code === 403) return text(req, res, 404, 'Not found');
+    }
+    send(req, res, 200, TYPES['.html'], listing(got.real, pathname, parts));
+  };
+  const server = http.createServer((req, res) => {
+    handle(req, res).catch((e) => {
+      const code = e.code === 'EACCES' || e.code === 'EPERM' ? 403 : e.code === 'ENOENT' || e.code === 'ENOTDIR' ? 404 : 500;
+      console.error(`deckmd serve: ${req.method} ${req.url}: ${e.message}`);
+      if (res.headersSent) return res.destroy();
+      try { text(req, res, code, code === 403 ? 'Forbidden: this folder or file can\'t be read' : code === 404 ? 'Not found' : 'Server error'); } catch { res.destroy(); }
     });
   });
 
