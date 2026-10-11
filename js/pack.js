@@ -73,7 +73,7 @@
   // url(…) in CSS → data:
   async function packCss(text, baseUrl) {
     // @import is inlined in place (ones with a media condition are left as is)
-    for (const m of [...text.matchAll(/@import\s+(?:url\(\s*)?(["']?)([^"')\s]+?)\1\s*\)?\s*;/g)]) {
+    for (const m of [...text.matchAll(/@import\s+(?:url\(\s*)?(["']?)([^"')\s]+?)\1\s*\)?\s*;/gi)]) {
       if (/^data:/.test(m[2])) continue;
       try { const u = new URL(m[2], baseUrl); const inner = await packCss(await fetchText(u), u); text = text.replace(m[0], () => inner); }
       catch { missing.push(m[2]); }
@@ -81,13 +81,13 @@
     // A src list with woff2 and older formats (woff, ttf), in any order: woff2 is all a current browser uses, and the others would double or triple the size of the file
     // (local(…) entries stay; an entry counts as woff2 by its format(…) hint or, without one, by its .woff2 extension)
     text = text.replace(/@font-face\s*\{[^}]*\}/gi, face => face.replace(/(\bsrc\s*:\s*)([^;}]*)/gi, (whole, head, list) => {            // only inside @font-face (a custom property may be called --x-src)
-      const entries = list.split(/,(?=\s*url\()/);
+      const entries = list.split(/,(?=\s*url\()/i);
       const isW2 = e => /format\(\s*["']?woff2["']?\s*\)/i.test(e) || (!/format\(/i.test(e) && /url\(\s*["']?[^)"']*\.woff2(?:[?#][^)"']*)?["']?\s*\)/i.test(e));
       const w2 = entries.filter(e => /url\(/i.test(e) && isW2(e));
       if (!w2.length || entries.filter(e => /url\(/i.test(e)).length === w2.length) return whole;
       return head + entries.filter(e => !/url\(/i.test(e) || isW2(e)).join(',').trim();
     }));
-    const refs = [...new Set([...text.matchAll(/url\((["']?)([^"')]+)\1\)/g)].map(m => m[2]).filter(r => !/^(data:|#)/.test(r)))];
+    const refs = [...new Set([...text.matchAll(/url\((["']?)([^"')]+)\1\)/gi)].map(m => m[2]).filter(r => !/^(data:|#)/.test(r)))];
     for (const ref of refs) {
       try {
         const uri = await fetchDataUri(new URL(ref, baseUrl));
