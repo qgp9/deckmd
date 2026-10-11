@@ -110,7 +110,7 @@ $$
 - **Money is not math.** A single `$` opens a formula only when no space follows it, and closes it only when no space comes before it and no digit follows ("it costs $5 and $10" stays text). Write `\$` for a dollar sign that would otherwise start a formula.
 - A formula KaTeX can't read stays in place as the TeX you wrote, in red, with the message as its tooltip (and in the console); the rest of the deck is fine.
 - In the front matter: `math: { output: htmlAndMathml, macros: { '\RR': '\mathbb{R}' } }`. `output` is `htmlAndMathml` (default: the same look in every browser, and MathML for screen readers), `html`, or `mathml` (the browser draws it: no CSS and no fonts, a smaller bundle, a look that depends on the browser). `macros` are KaTeX macros.
-- KaTeX (the JS, the CSS and its fonts, woff2 only: about 0.5 MB) is loaded only when the Markdown has a formula in it, found with the same rules that draw one: money (`$5 and $10`), `\$` and code don't count. Like every library: `data-local` loads it from `vendor/` (`node tools/localize.mjs` downloads it), and packing embeds it (offline) or keeps the CDN files (share).
+- KaTeX (the JS, the CSS and its fonts, woff2 only: about 0.5 MB) is loaded only when the Markdown has a formula in it, found with the same rules that draw one: money (`$5 and $10`), `\$` and code don't count. Like every library: `data-local` loads it from `vendor/` (`node tools/localize.mjs` always downloads it), and packing embeds it (offline) or keeps the CDN files (share), **only for a deck that has a formula**: an offline bundle of a deck without one doesn't contain KaTeX.
 
 ## Writing a plugin
 
