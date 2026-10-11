@@ -24,7 +24,10 @@ npx deckmd mydeck.md --share      # → dist/mydeck.share.html: about 100 KB, op
 npx deckmd mydeck.md              # → dist/mydeck.offline.html: 4 MB, everything inside, opens without internet
 ```
 
-Live preview while you write: `npx deckmd serve mydeck.md`. No Node? [See below](#works-with-or-without-node). (The first `npx` run takes a few seconds to install.)
+- Live preview while you write: `npx deckmd serve mydeck.md`
+- Share or offline, and the rest of packing: [docs/packing.md](docs/packing.md)
+- No Node? See [Works with or without node](#works-with-or-without-node)
+- The first `npx` run takes a few seconds to install
 
 ## What a deck looks like
 
