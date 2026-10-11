@@ -78,8 +78,15 @@
       try { const u = new URL(m[2], baseUrl); const inner = await packCss(await fetchText(u), u); text = text.replace(m[0], () => inner); }
       catch { missing.push(m[2]); }
     }
-    // A font-face that lists woff2 and older formats (woff, ttf): woff2 is all a current browser uses, and the others would double or triple the size of the file
-    text = text.replace(/(url\([^)]*\)\s*format\(["']woff2["']\))(?:\s*,\s*url\([^)]*\)\s*format\(["'](?:woff|truetype|opentype)["']\))+/g, '$1');
+    // A src list with woff2 and older formats (woff, ttf), in any order: woff2 is all a current browser uses, and the others would double or triple the size of the file
+    // (local(…) entries stay; an entry counts as woff2 by its format(…) hint or, without one, by its .woff2 extension)
+    text = text.replace(/(\bsrc\s*:\s*)([^;}]*)/gi, (whole, head, list) => {
+      const entries = list.split(/,(?=\s*url\()/);
+      const isW2 = e => /format\(\s*["']?woff2["']?\s*\)/i.test(e) || (!/format\(/i.test(e) && /url\(\s*["']?[^)"']*\.woff2(?:[?#][^)"']*)?["']?\s*\)/i.test(e));
+      const w2 = entries.filter(e => /url\(/i.test(e) && isW2(e));
+      if (!w2.length || entries.filter(e => /url\(/i.test(e)).length === w2.length) return whole;
+      return head + entries.filter(e => !/url\(/i.test(e) || isW2(e)).join(',').trim();
+    });
     const refs = [...new Set([...text.matchAll(/url\((["']?)([^"')]+)\1\)/g)].map(m => m[2]).filter(r => !/^(data:|#)/.test(r)))];
     for (const ref of refs) {
       try {

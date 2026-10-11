@@ -1145,6 +1145,12 @@ test('math plugin: $…$ and $$…$$ reach KaTeX as written; money, escapes and 
   assert.match(html('inside $$y$$ a sentence'), /^<p>inside <span class="katex-display">/);
   assert.match(html('\\(a_i\\) and \\[b_j\\]'), /katex[\s\S]*katex-display/);
   assert.equal(md.render('$$\nnever closed').includes('katex'), false);
+  // a block must not swallow what follows: text after a one-line $$ … $$, and a blank line inside, both fall back
+  const trail = html('$$ x $$ trailing text\n\nmore text between\n\n$$\ny\n$$');
+  assert.equal((trail.match(/class="katex-display"/g) || []).length, 2, 'the formula with text after it, and the later block');
+  assert.match(trail, /trailing text<\/p>/);
+  assert.match(trail, /<p>more text between<\/p>/, 'the paragraph between is still a paragraph');
+  assert.doesNotMatch(html('$$\na\n\nb\n$$'), /katex/, 'a blank line inside is not a block (TeX does not allow one either)');
   const bad = html('bad $\\frac{1$ here');
   assert.match(bad, /<span class="math-error" title="KaTeX parse error[^"]*">\\frac\{1<\/span>/, 'the TeX and the message, in place');
   assert.deepEqual(loads.length, 2, 'the KaTeX css and js are asked for when the Markdown has a $');
@@ -1178,6 +1184,26 @@ test('math plugin: libraries it asks for are known to localize (tools/libs.mjs) 
   const share = make('tests/fixtures/math/talk.md', 'math.share.html', '--share').html;
   assert.ok(!keys(share).some(x => /katex/.test(x)), 'share: KaTeX stays a CDN file');
   assert.ok(share.includes('katex@0.18.7'));
+});
+
+test('pack: a font-face keeps only its woff2, whatever the order of the formats; local() and a list without woff2 stay', () => {
+  const dir = path.join(OUT, 'fonts-order');
+  fs.mkdirSync(dir, { recursive: true });
+  for (const f of ['a.ttf', 'a.woff', 'a.woff2', 'b.woff', 'b.woff2', 'c.woff2', 'c.woff', 'd.ttf', 'd.woff']) fs.writeFileSync(path.join(dir, f), `font ${f}`);
+  fs.writeFileSync(path.join(dir, 'fonts.css'), [
+    '@font-face{font-family:A;src:url(a.ttf) format("truetype"),url(a.woff) format("woff"),url(a.woff2) format("woff2")}',      // woff2 last
+    '@font-face{font-family:B;src:local("B Local"),url(b.woff) format("woff"),url(b.woff2) format("woff2")}',
+    '@font-face{font-family:C;src:url(c.woff2),url(c.woff)}',                                                                    // no format() hints
+    '@font-face{font-family:D;src:url(d.ttf) format("truetype"),url(d.woff) format("woff")}',                                    // no woff2: both stay
+  ].join('\n'));
+  fs.writeFileSync(path.join(dir, 'talk.md'), '---\ntitle: fonts\ncss: [fonts.css]\n---\n\n## a\n');
+  const { html } = make(path.relative(ROOT, path.join(dir, 'talk.md')), 'fonts-order.html', '--offline');
+  const css = /<style data-src="[^"]*fonts\.css"[^>]*>([\s\S]*?)<\/style>/.exec(html)?.[1] || '';
+  const count = (re) => (css.match(re) || []).length;
+  assert.equal(count(/data:font\/woff2;/g), 3, 'A, B and C: their woff2');
+  assert.equal(count(/data:font\/ttf;/g), 1, 'only D keeps its ttf');
+  assert.equal(count(/data:font\/woff;/g), 1, 'only D keeps its woff');
+  assert.match(css, /local\("B Local"\)/);
 });
 
 test('unpack: only user files back to their places; packing again gives the same result', () => {
