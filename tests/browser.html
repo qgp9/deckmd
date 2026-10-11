@@ -236,14 +236,27 @@ const CASES = [
   { group: 'set source', name: 'bad input: slideAt(not a number) is null, setSource/outline of a non-string fail, opts may be null', url: `${R}?src=tests/fixtures/lines/talk.md`, slides: 3, check: badInputCheck },
   { group: 'set source', name: 'the same text with \\r\\n (an editor keeps \\n) is the same deck: no spurious reload', url: `${R}?src=tests/fixtures/lines/talk.md`, slides: 3, check: crlfCheck },
   { group: 'source', name: 'plugins: [source] → source slides under each slide, the front matter first under slide 1 (not under <!-- source: off -->; notes stay out, tags stay text, highlighted)', url: `${R}?src=tests/fixtures/source/talk.md`, slides: 3, notes: 1, check: d => {
+      const D = d.defaultView.DeckMD;                                                                                          // for a deck written with --- the two texts agree: what was rendered and the lines of the file (minus the notes)
+      const agree = [...d.querySelectorAll('.slides section')].every(s => !D.slideInfo.has(s) || D.sources.get(s) === D.slideInfo.get(s).withoutNotes);
       const src = [...d.querySelectorAll('.slides > section > section.source-slide code')].map(c => c.textContent);
-      return (src.length === 3 && src[0].includes('title: source plugin test') && src[1].includes('# One') && src[1].includes('<b>tags</b>') && !src[1].includes('speaker note') && src[2].includes('tier: core') && !d.querySelector('.source-slide b') && d.querySelectorAll('.slides .source-slide code.hljs').length === 3)
+      return (agree && src.length === 3 && src[0].includes('title: source plugin test') && src[1].includes('# One') && src[1].includes('<b>tags</b>') && !src[1].includes('speaker note') && src[2].includes('tier: core') && !d.querySelector('.source-slide b') && d.querySelectorAll('.slides .source-slide code.hljs').length === 3)
         || `source slides: ${JSON.stringify(src)}`; } },
   { group: 'source', name: '?source=off hides them (the plugin stays loaded)', url: `${R}?src=tests/fixtures/source/talk.md&source=off`, slides: 3, check: d => d.querySelectorAll('.slides .source-slide').length === 0 || 'a source slide is there' },
   { group: 'source', name: '?core: a cut slide takes its source with it', url: `${R}?src=tests/fixtures/source/talk.md&core&defaultTier=none`, slides: 1, check: d => d.querySelectorAll('.slides .source-slide').length === 2 || 'source slides after ?core (front matter + source of the one left)' },
   { group: 'view', name: 'README.md is a deck: no slide breaks, split by headings; ?use=source adds a source slide under each slide', url: `${R}?src=README.md&use=source`, check: d => {
       const top = d.querySelectorAll('.slides > section').length, withSource = d.querySelectorAll('.slides > section > section.source-slide').length;
-      return (top >= 10 && withSource === top && d.querySelector('.slides h1')?.textContent.trim() === 'deckmd') || `slides ${top} · with a source slide ${withSource}`; } },
+      // no source slide shows what deckmd built for a split-by-headings deck (<!-- fit -->), and no slide runs over the bottom: a slide that is too long is shrunk (data-fit), also inside the vertical stack the source plugin makes
+      const built = [...d.querySelectorAll('.slides .source-slide code')].filter(c => /<!--\s*(class: chapter; )?fit/.test(c.textContent)).length;
+      const H = d.defaultView.Reveal.getConfig().height * 0.96;
+      const over = [...d.querySelectorAll('.reveal .slides section[data-fit]')].filter(sec => {
+        const stack = sec.parentElement?.matches('section') ? sec.parentElement : null, ss = stack?.style.display, sd = sec.style.display;
+        try {
+          if (stack) stack.style.display = 'block';
+          sec.style.display = 'block';
+          return sec.scrollHeight > H && sec.style.fontSize !== '60%';
+        } finally { sec.style.display = sd; if (stack) stack.style.display = ss; }
+      }).length;
+      return (top >= 10 && withSource === top && d.querySelector('.slides h1')?.textContent.trim() === 'deckmd' && !built && !over) || `slides ${top} · with a source slide ${withSource} · source slides with <!-- fit --> ${built} · slides over the bottom ${over}`; } },
   { group: 'view', name: '?use=source on a deck that already lists the source plugin: loaded once (one source slide per slide, not two)', url: `${R}?src=examples/grid/talk.md&use=source`, slides: 11, check: d =>
       (d.querySelectorAll('.slides > section > section.source-slide').length === 12 && d.defaultView.DeckMD.loaded.filter(r => /plugins\/source\/source\.js$/.test(r.key)).length === 1)           // 11 slides: the front matter page makes 12
       || `source slides ${d.querySelectorAll('.slides > section > section.source-slide').length}` },

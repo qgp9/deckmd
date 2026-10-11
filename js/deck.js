@@ -49,7 +49,7 @@
     sources: new WeakMap(),   // section → the Markdown it was made from (slide settings comment + content, without the notes). Only for slides made from Markdown
     slideInfo: new WeakMap(), // section → where the slide is in the Markdown file: { section, startLine, endLine, source, notes }. Only for slides made from Markdown
                               //   startLine..endLine: 1-based, inclusive, from the first to the last non-blank line of the slide (the front matter's lines count)
-                              //   source: those lines as written (settings comment, content and speaker notes). notes: the speaker notes alone
+                              //   source: those lines as written (settings comment, content and speaker notes). notes: the speaker notes alone. withoutNotes: source minus the notes
                               //   source and notes are worked out when you read them (getters), so a deck nobody asks pays for the two numbers only.
                               //   Don't spread the object ({ ...info }): that reads them all at once
                               //   (sources, above, is what was rendered: without the notes, and for a deck split by headings the text deckmd built from the headings)
@@ -394,17 +394,25 @@
   const fileLines = () => (linesOfText === DeckMD.source ? linesOfCache : (linesOfCache = String(linesOfText = DeckMD.source).split(/\r?\n/)));
 
   // loc: { startLine, endLine } where the slide is in the file (see DeckMD.slideInfo)
+  // The slide as written without the speaker notes: its settings comment and its content. One place, because DeckMD.sources (what was rendered) and
+  // slideInfo.withoutNotes (the lines of the file) must agree for a slide that is written as it is rendered
+  function textWithoutNotes(src) {
+    const d = directives(src);
+    return (src.slice(0, src.length - d.rest.length) + splitNotes(d.rest)[0]).trim();
+  }
+
   function buildSection(src, md, loc) {
     const { attrs, rest } = directives(src);
     const [content, notes] = splitNotes(rest);
     const section = document.createElement('section');
     applyAttrs(section, attrs);
-    DeckMD.sources.set(section, (src.slice(0, src.length - rest.length) + content).trim());
+    DeckMD.sources.set(section, textWithoutNotes(src));
     if (loc) {
       DeckMD.slideInfo.set(section, {
         section, startLine: loc.startLine, endLine: loc.endLine,
         get source() { return fileLines().slice(this.startLine - 1, this.endLine).join('\n'); },
         get notes() { return (splitNotes(directives(this.source).rest)[1] || '').trim(); },
+        get withoutNotes() { return textWithoutNotes(this.source); },   // the lines as written, without the notes
       });
     }
     section.innerHTML = md.render(content);
@@ -910,17 +918,23 @@
   // data-fit slides (split by headings, or <!-- fit -->): if they overflow, shrink the text to fit the slide height (down to 60%)
   function fitSlides() {
     const H = Reveal.getConfig().height * 0.96;
-    for (const sec of document.querySelectorAll('.reveal .slides > section[data-fit]')) {
-      const shown = sec.style.display;
-      sec.style.display = 'block';
-      sec.style.fontSize = '';
-      for (let k = 0, pct = 100; k < 4; k++) {
-        const h = sec.scrollHeight;
-        if (h <= H || pct <= 60) break;
-        pct = Math.max(60, Math.floor(pct * (H / h) * 0.98));
-        sec.style.fontSize = `${pct}%`;
+    for (const sec of document.querySelectorAll('.reveal .slides section[data-fit]')) {      // also a slide inside a vertical stack (a plugin may put each slide in one)
+      const stack = sec.parentElement?.matches('section') ? sec.parentElement : null;       // a hidden stack has no height: show it while measuring
+      const stackShown = stack?.style.display, shown = sec.style.display;
+      try {
+        if (stack) stack.style.display = 'block';
+        sec.style.display = 'block';
+        sec.style.fontSize = '';
+        for (let k = 0, pct = 100; k < 4; k++) {
+          const h = sec.scrollHeight;
+          if (h <= H || pct <= 60) break;
+          pct = Math.max(60, Math.floor(pct * (H / h) * 0.98));
+          sec.style.fontSize = `${pct}%`;
+        }
+      } finally {                                                                              // whatever happens, the slides are hidden again as reveal.js had them
+        sec.style.display = shown;
+        if (stack) stack.style.display = stackShown;
       }
-      sec.style.display = shown;
     }
     Reveal.layout();
   }
