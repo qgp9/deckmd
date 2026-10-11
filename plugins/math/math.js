@@ -2,7 +2,7 @@ const katex = DeckMD.register({ libs: ['https://cdn.jsdelivr.net/npm/katex@0.18.
 // math plugin — TeX in Markdown, drawn with KaTeX. plugins: [math] in the front matter. Docs: docs/plugins.md
 //   $x^2$  \(x^2\)   in a sentence          $$ … $$   \[ … \]   as a block (on lines of its own) or inside a sentence
 //   math: { output: htmlAndMathml (default) | html | mathml, macros: { '\RR': '\mathbb{R}' } }   in the front matter
-// The KaTeX files are loaded only when the Markdown has a '$' or '\(' / '\[' in it (load: 'manual' above), and the CSS (with the fonts) not at all for output: mathml.
+// The KaTeX files are loaded only when the Markdown has a formula in it (found with the same rules that draw it; load: 'manual' above), and the CSS (with the fonts) not at all for output: mathml.
 // The two rules run before the Markdown ones for _ * \ ` so a formula reaches KaTeX as it was written. Code spans and code blocks are never touched.
 (() => {
   const { esc } = DeckMD;
@@ -79,14 +79,21 @@ const katex = DeckMD.register({ libs: ['https://cdn.jsdelivr.net/npm/katex@0.18.
   DeckMD.init((deck) => {                                              // the front matter, the source and markdown-it exist now (see DeckMD.init)
     opts = deck.config?.math || {};
     output = ['html', 'mathml', 'htmlAndMathml'].includes(opts.output) ? opts.output : 'htmlAndMathml';
-    if (/\$|\\\(|\\\[/.test(deck.source || '')) {
-      if (output !== 'mathml') deck.load(katex.css);
-      deck.load(katex.js);
-    }
     const md = deck.md;
     md.inline.ruler.before('escape', 'math_inline', inline);
     md.block.ruler.before('fence', 'math_block', block, { alt: ['paragraph', 'reference', 'blockquote', 'list'] });
     md.renderer.rules.math_inline = (tokens, i) => render(tokens[i].content, tokens[i].meta.display);
     md.renderer.rules.math_block = (tokens, i) => `<div class="math-block">${render(tokens[i].content, true)}</div>\n`;
+    // Is there a formula in this deck? Parse (not draw) the Markdown with the rules above: money ($5 and $10), \$, code and the front matter don't count
+    let found = true;
+    try {
+      const text = deck.source || '';
+      const body = deck.frontMatter && text.startsWith(deck.frontMatter) ? text.slice(deck.frontMatter.length) : text;
+      found = md.parse(body, {}).some(t => t.type === 'math_block' || t.children?.some(c => c.type === 'math_inline'));
+    } catch { /* can't tell: load KaTeX */ }
+    if (found) {
+      if (output !== 'mathml') deck.load(katex.css);
+      deck.load(katex.js);
+    }
   });
 })();

@@ -1120,7 +1120,7 @@ async function mathMarkdown(config = {}) {
   const md = markdownit({ html: true });
   const loads = [], queue = [];
   const DeckMD = { esc: x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), register: ({ libs }) => ({ libs, css: libs.filter(u => /\.css/.test(u)), js: libs.filter(u => !/\.css/.test(u)) }), loadCSS() {}, load: u => loads.push(u),
-    init: fn => queue.push(fn), md, config, source: config.source ?? '$x$' };
+    init: fn => queue.push(fn), md, config, source: config.source ?? '$x$', frontMatter: config.frontMatter ?? '' };
   new Function('DeckMD', 'window', fs.readFileSync(path.join(ROOT, 'plugins/math/math.js'), 'utf8'))(DeckMD, win);
   assert.equal(md.renderer.rules.math_inline, undefined, 'nothing is set up before DeckMD.init runs');
   queue.forEach(fn => fn(DeckMD));
@@ -1153,8 +1153,13 @@ test('math plugin: $…$ and $$…$$ reach KaTeX as written; money, escapes and 
   const ml = await mathMarkdown({ math: { output: 'mathml' } });
   assert.match(ml.md.render('$x$'), /<math/);
   assert.equal(ml.loads.length, 1, 'output: mathml needs no CSS (and so no fonts): only the js');
-  const none = await mathMarkdown({ source: 'no formulas in this deck' });
-  assert.equal(none.loads.length, 0, 'a deck without a $ does not load KaTeX');
+  for (const text of ['no formulas in this deck', 'costs $5 and $10', 'shell: `$ npm i` and \\$x\\$', '```sh\n$ echo $HOME $PATH\n```\n\nplain', '---\ntitle: $x$ in the front matter\n---\n\nbody']) {
+    const none = await mathMarkdown({ source: text, frontMatter: text.startsWith('---') ? '---\ntitle: $x$ in the front matter\n---' : '' });
+    assert.equal(none.loads.length, 0, `no formula, so no KaTeX: ${JSON.stringify(text)}`);
+  }
+  const some = await mathMarkdown({ source: 'money $5 but also $x_1$ here' });
+  assert.equal(some.loads.length, 2, 'a real formula next to money loads it');
+  assert.equal((await mathMarkdown({ source: '- a list\n\n  $$ y $$\n\n> quote $z$' })).loads.length, 2, 'inside a list and a quote too')
 });
 
 test('math plugin: libraries it asks for are known to localize (tools/libs.mjs) and go into the bundle; fonts are woff2 only', async () => {
