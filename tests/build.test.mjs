@@ -1231,29 +1231,34 @@ test('README: the TL;DR block runs as written (here-doc, both packs) and the siz
   const block = file => /## TL;DR\s+```bash\n([\s\S]*?)```/.exec(fs.readFileSync(path.join(ROOT, file), 'utf8'))?.[1];
   const en = block('README.md'), ko = block('README.ko.md');
   assert.ok(en && ko, 'a TL;DR bash block in both READMEs');
-  // The shell lines without the comment after them (the README aligns it after two or more spaces; it differs by language) and the here-doc body exactly as written:
-  // a # in the body is Markdown (a heading), not a comment
-  const commands = (text) => {
+  // The block line by line: a shell line (the aligned comment after it, two or more spaces then #, differs by language) or a line of a here-doc body, which is
+  // kept exactly as written: a # in the body is Markdown (a heading), not a comment, and 'npx deckmd' in it is deck text, not a command
+  const lines = (text) => {
     const out = [];
     let end = null;
     for (const line of text.split('\n')) {
-      if (end) { out.push(line); if (line === end) end = null; continue; }
+      if (end) { out.push({ body: true, line }); if (line === end) end = null; continue; }
       const shell = line.replace(/\s{2,}#.*$/, '').trimEnd();
-      if (shell) out.push(shell);
-      end = /<<\s*'?(\w+)'?$/.exec(shell)?.[1] ?? null;
+      if (shell) out.push({ body: false, line: shell });
+      end = /<<-?\s*["']?(\w+)["']?$/.exec(shell)?.[1] ?? null;
     }
     return out;
   };
+  const commands = text => lines(text).map(l => l.line);
   assert.deepEqual(commands(ko), commands(en), 'the same commands, and the same deck in the here-doc, in README.ko.md');
   assert.ok(commands(en).includes('# Hello deckmd'), 'the here-doc body is kept, headings included');
+  const script = lines(en).map(l => (l.body ? l.line : l.line.replaceAll('npx deckmd', `node ${JSON.stringify(BUILD)}`))).join('\n');             // npx deckmd = this checkout
+  // the files the README says it makes (# → dist/…): they must come out, and be about the size it says
+  const claimed = [...en.matchAll(/→ (dist\/[^\s:]+)/g)].map(m => m[1]);
+  assert.equal(claimed.filter(f => /\.share\./.test(f)).length + claimed.filter(f => /\.offline\./.test(f)).length, 2, `the README block names a share and an offline file: ${claimed.join(', ')}`);
   const dir = path.join(SANDBOX, 'tldr');
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
-  const r = spawnSync('sh', ['-c', en.replaceAll('npx deckmd', `node ${JSON.stringify(BUILD)}`)], { cwd: dir, encoding: 'utf8' });   // npx deckmd = this checkout
+  const r = spawnSync('sh', ['-c', script], { cwd: dir, encoding: 'utf8' });
   assert.equal(r.status, 0, `${r.stderr}${r.stdout}`);
-  for (const f of ['mydeck.share.html', 'mydeck.offline.html']) assert.ok(fs.existsSync(path.join(dir, 'dist', f)), `dist/${f}: the block no longer makes it (update the README, or this test)`);
-  const size = f => fs.statSync(path.join(dir, 'dist', f)).size;
-  const share = size('mydeck.share.html'), offline = size('mydeck.offline.html');
+  for (const f of claimed) assert.ok(fs.existsSync(path.join(dir, f)), `${f}: the README says the block makes it, but it does not (update the README, or this test)`);
+  const size = kind => fs.statSync(path.join(dir, claimed.find(f => f.includes(`.${kind}.`)))).size;
+  const share = size('share'), offline = size('offline');
   // the README says "about 100 KB" and "4 MB": when a bundle grows out of these ranges, update the numbers in README.md and README.ko.md
   assert.ok(share > 50 * 1024 && share < 300 * 1024, `share bundle ${share} bytes: the README says about 100 KB`);
   assert.ok(offline > 3 * 1048576 && offline < 6 * 1048576, `offline bundle ${offline} bytes: the README says 4 MB`);
