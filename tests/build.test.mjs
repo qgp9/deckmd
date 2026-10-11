@@ -1107,6 +1107,74 @@ test('source plugin: packs with the deck (the plugin and its CSS go into the bun
   assert.deepEqual(external(html), []);
 });
 
+// The math plugin: the Markdown rules with the real markdown-it and KaTeX (from vendor/ if there is a copy, else the internet, like the pack tests)
+const fromVendorOrNet = async (url) => {
+  const local = path.join(ROOT, 'vendor', url.replace(/^https?:\/\//, ''));
+  return fs.existsSync(local) ? fs.readFileSync(local, 'utf8') : (await fetch(url)).text();
+};
+async function mathMarkdown(config = {}) {
+  const run = (code, ...args) => { const m = { exports: {} }; new Function('module', 'exports', 'window', 'self', ...args.map(a => a[0]), code)(m, m.exports, win, win, ...args.map(a => a[1])); return m.exports; };
+  const win = {};
+  const markdownit = run(await fromVendorOrNet('https://cdn.jsdelivr.net/npm/markdown-it@15.0.2/dist/browser/markdown-it.umd.min.js'));
+  win.katex = run(await fromVendorOrNet('https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js'));
+  const md = markdownit({ html: true });
+  const loads = [], queue = [];
+  const DeckMD = { esc: x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), register() {}, loadCSS() {}, load: u => loads.push(u),
+    init: fn => queue.push(fn), md, config, source: config.source ?? '$x$' };
+  new Function('DeckMD', 'window', fs.readFileSync(path.join(ROOT, 'plugins/math/math.js'), 'utf8'))(DeckMD, win);
+  assert.equal(md.renderer.rules.math_inline, undefined, 'nothing is set up before DeckMD.init runs');
+  queue.forEach(fn => fn(DeckMD));
+  return { md, loads };
+}
+
+test('math plugin: $…$ and $$…$$ reach KaTeX as written; money, escapes and code stay text; a mistake is shown in place', async () => {
+  const { md, loads } = await mathMarkdown();
+  const html = s => md.render(s);
+  assert.match(html('Euler $e^{i\\pi}+1=0$ ok'), /<span class="katex">/);
+  assert.match(html('$x_1 + y_2$ and a_b c_d'), /class="katex"[\s\S]*a_b c_d/, 'the underscore in the formula is not emphasis; outside it still is text');
+  assert.doesNotMatch(html('costs $5 and $10 total'), /katex/, 'money');
+  assert.doesNotMatch(html('between $5-$10 range'), /katex/);
+  assert.doesNotMatch(html('\\$x\\$ stays'), /katex/, 'escaped');
+  assert.match(html('\\$x\\$ stays'), /\$x\$ stays/);
+  assert.doesNotMatch(html('code `$x$` here'), /katex/);
+  assert.doesNotMatch(html('```\n$x$\n```'), /katex/, 'fenced code');
+  assert.doesNotMatch(html('$ not math $ and $unclosed'), /katex/);
+  const block = html('$$\na^2+b^2=c^2\n$$');
+  assert.match(block, /^<div class="math-block"><span class="katex-display">/);
+  assert.match(html('$$ x $$'), /math-block/, 'one line is a block');
+  assert.match(html('inside $$y$$ a sentence'), /^<p>inside <span class="katex-display">/);
+  assert.match(html('\\(a_i\\) and \\[b_j\\]'), /katex[\s\S]*katex-display/);
+  assert.equal(md.render('$$\nnever closed').includes('katex'), false);
+  const bad = html('bad $\\frac{1$ here');
+  assert.match(bad, /<span class="math-error" title="KaTeX parse error[^"]*">\\frac\{1<\/span>/, 'the TeX and the message, in place');
+  assert.deepEqual(loads.length, 2, 'the KaTeX css and js are asked for when the Markdown has a $');
+  const html_ = await mathMarkdown({ math: { output: 'html' } });
+  assert.doesNotMatch(html_.md.render('$x$'), /<math/, 'output: html has no MathML');
+  const ml = await mathMarkdown({ math: { output: 'mathml' } });
+  assert.match(ml.md.render('$x$'), /<math/);
+  assert.equal(ml.loads.length, 1, 'output: mathml needs no CSS (and so no fonts): only the js');
+  const none = await mathMarkdown({ source: 'no formulas in this deck' });
+  assert.equal(none.loads.length, 0, 'a deck without a $ does not load KaTeX');
+});
+
+test('math plugin: libraries it asks for are known to localize (tools/libs.mjs) and go into the bundle; fonts are woff2 only', async () => {
+  const notices = { list: [] };
+  const found = (await import(path.join(ROOT, 'tools/libs.mjs'))).pluginLibs(ROOT, notices);
+  assert.deepEqual(found.map(f => f.plugin), ['math'], 'only the plugins that register something');
+  assert.deepEqual(found[0].libs, ['https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.css', 'https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js']);
+  assert.ok(notices.list.some(n => n.name === 'KaTeX' && n.spdx === 'MIT'), 'its license entry is added too');
+  const { html } = make('tests/fixtures/math/talk.md', 'math.offline.html', '--offline');
+  const k = keys(html);
+  for (const want of ['plugins/math/math.js', 'plugins/math/math.css', 'https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js', 'https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.css']) assert.ok(k.includes(want), want);
+  assert.deepEqual(external(html), []);
+  assert.match(html, /data:font\/woff2;base64,/);
+  assert.doesNotMatch(html, /data:font\/ttf|format\("truetype"\)|format\("woff"\)/, 'the older font formats are left out');
+  assert.match(html, /KaTeX — MIT/, 'in the license list at the top');
+  const share = make('tests/fixtures/math/talk.md', 'math.share.html', '--share').html;
+  assert.ok(!keys(share).some(x => /katex/.test(x)), 'share: KaTeX stays a CDN file');
+  assert.ok(share.includes('katex@0.18.7'));
+});
+
 test('unpack: only user files back to their places; packing again gives the same result', () => {
   // The real-world layout: deckmd/ inside a presentation repository (here a link pointing to this repository)
   const repo = path.join(SANDBOX, 'unpack-repo');

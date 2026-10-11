@@ -1,0 +1,5 @@
+/* math plugin: TeX drawn with KaTeX (KaTeX's own CSS and fonts are loaded next to this file's rules) */
+.reveal .math-block { margin: 0.4em 0 0.8em; }
+.reveal .math-block .katex-display { margin: 0; }
+.reveal .katex { font-size: 1.05em; }
+.reveal .math-error { color: var(--bad, #d33); font-family: var(--r-code-font, monospace); border-bottom: 1px dotted currentColor; }

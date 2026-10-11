@@ -89,6 +89,29 @@ plugins: [source]
 - Printing (`?print-pdf`) prints the source slides too, as vertical slides do. Add `?source=off` to leave them out.
 - There is no button for it in the helper panel (E): it is something the deck's author turns on.
 
+## Built-in: math
+
+TeX in Markdown, drawn with [KaTeX](https://katex.org). Example deck: [`examples/math/`](../examples/math/talk.md).
+
+```yaml
+plugins: [math]
+```
+
+````markdown
+Euler: $e^{i\pi} + 1 = 0$ in a sentence, and as a block:
+
+$$
+\int_0^\infty e^{-x^2}\,dx = \frac{\sqrt{\pi}}{2}
+$$
+````
+
+- `$…$` and `\(…\)` in a sentence; `$$…$$` and `\[…\]` as a block (a line that starts with `$$`, up to the line that ends with `$$`; one line is enough) or inside a sentence.
+- A formula reaches KaTeX as written: `_`, `*` and `\` inside it are not Markdown. Code spans and code blocks are never touched.
+- **Money is not math.** A single `$` opens a formula only when no space follows it, and closes it only when no space comes before it and no digit follows ("it costs $5 and $10" stays text). Write `\$` for a dollar sign that would otherwise start a formula.
+- A formula KaTeX can't read stays in place as the TeX you wrote, in red, with the message as its tooltip (and in the console); the rest of the deck is fine.
+- In the front matter: `math: { output: htmlAndMathml, macros: { '\RR': '\mathbb{R}' } }`. `output` is `htmlAndMathml` (default: the same look in every browser, and MathML for screen readers), `html`, or `mathml` (the browser draws it: no CSS and no fonts, a smaller bundle, a look that depends on the browser). `macros` are KaTeX macros.
+- KaTeX (the JS, the CSS and its fonts, woff2 only: about 0.5 MB) is loaded only when the Markdown has a `$`, `\(` or `\[` in it. Like every library: `data-local` loads it from `vendor/` (`node tools/localize.mjs` downloads it), and packing embeds it (offline) or keeps the CDN files (share).
+
 ## Writing a plugin
 
 Put it at `plugins/<name>/<name>.js` (inside deckmd), or in a JS file at any path. It registers syntax with `DeckMD`.
@@ -98,7 +121,7 @@ Put it at `plugins/<name>/<name>.js` (inside deckmd), or in a JS file at any pat
 DeckMD.loadCSS('hello.css');                       // CSS next to this file (all loaded before the deck starts)
 DeckMD.registerFence('hello', (code, attrs) => `<div class="hello">${DeckMD.esc(code)}</div>`);
 DeckMD.afterRender(section => { /* adjust the slide after it is built */ });
-// DeckMD.md is the markdown-it instance — DeckMD.md.use(...) works too
+// DeckMD.init(deck => deck.md.use(...)) — markdown-it, the front matter and the source exist once init runs (see below)
 ```
 
 | API | What it does |
@@ -108,8 +131,10 @@ DeckMD.afterRender(section => { /* adjust the slide after it is built */ });
 | `DeckMD.sources` | A `WeakMap`: slide `section` → the Markdown it was made from (settings comment + content, without the notes). Empty for slides of a deck written in HTML |
 | `DeckMD.registerRun(name, section => cleanup)` | Every time a slide with the slide setting `run: name` is shown. The returned function is called on leaving ([interactive.md](interactive.md)) |
 | `DeckMD.loadCSS(path)` | CSS next to the plugin itself |
-| `DeckMD.md` | The markdown-it instance |
-| `DeckMD.config` | This deck's front matter |
+| `DeckMD.init(deck => …)` | Runs `fn` once the deck's data exists: `deck.md` (the markdown-it instance), `deck.config` (this deck's front matter) and `deck.source`. Use it for anything that needs them: when the plugin is inside a bundled file it runs while the page is read, before they exist (from a server it runs later, so it would work by luck). Declaring things (`registerFence`, `afterRender`, `loadCSS`, `register`) needs no `init` |
+| `DeckMD.register({ libs: [url, …], load: 'auto' \| 'manual' })` | Declares the libraries the plugin needs from the internet. Put it at the very top of the plugin file, with the URLs written out in full (no template strings): `node tools/localize.mjs` runs the file in a sandbox to learn what to download into `vendor/`. `load: 'auto'` (default): deck.js loads them in this order, CSS and JS, once each, before the slides are built. `'manual'`: only declared; the plugin calls `DeckMD.load(url)` when it wants them (only for some decks, or depending on a setting: the math plugin loads KaTeX only when the Markdown has a `$`, and no CSS for `output: mathml`) |
+| `DeckMD.load(url)` | Loads a library (once; returns a promise). It uses `vendor/` with `data-local`, and is recorded, so packing embeds it (offline) or keeps the CDN URL (share). A plugin can add its license with `DeckNotices.list.push({ name, spdx, match })` |
+| `DeckMD.md`, `DeckMD.config`, `DeckMD.source` | markdown-it, the front matter, the Markdown text. Not there yet while a plugin file in a bundled file is read: use `DeckMD.init` |
 | `DeckMD.esc(text)` | HTML escape |
 | `DeckMD.version` | The deckmd version (a string like `'0.2.0'`). For information (messages such as "requires deckmd 0.2 or later", bug reports) |
 
