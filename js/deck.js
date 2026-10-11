@@ -56,8 +56,11 @@
     slides() {                // the slides of the page in order: the slideInfo objects themselves (slides made from Markdown only; ?core cuts are gone)
       return [...document.querySelectorAll('.slides section')].map(s => this.slideInfo.get(s)).filter(Boolean);
     },
-    slideAt(line) {           // the slide at a line of the file: the one whose lines contain it; a line between slides (blank, ---, front matter) → the next slide, after the last → the last
-      const all = this.slides(), n = Number(line);
+    slideAt(line) {           // the slide at a line of the file: the one whose lines contain it; a line between slides (blank, ---, front matter) → the next slide, after the last → the last.
+                              // null if there are no slides or the line is not a number
+      const n = Number(line);
+      if (line == null || line === '' || !Number.isFinite(n)) return null;
+      const all = this.slides();
       return all.find(i => n >= i.startLine && n <= i.endLine) || all.find(i => i.startLine > n) || all[all.length - 1] || null;
     },
     currentSlide() {          // the slideInfo of the slide being shown; on a slide a plugin added next to it (a source slide) → the slide it belongs to
@@ -70,7 +73,8 @@
     },
     // Show new Markdown without reloading (an editor's live preview): the slides are built again from the text and the slide being shown stays (or the one at opts.line).
     // → { ok: true, slides } | { ok: false, error } | { ok: false, reload: true, error } when the front matter changed (theme, css, plugins, size… are read once at load:
-    // save the file and reload instead). On { ok: false } nothing has changed. Only for a deck made from Markdown, once it is shown. DeckMD.source becomes the new text
+    // save the file and reload instead). On { ok: false } nothing has changed, also when a plugin or a fence throws while the slides are built (the slides shown before are put back;
+    // state a plugin reset in beforeRender stays reset). Only for a deck made from Markdown, once it is shown. DeckMD.source becomes the new text
     setSource(text, opts) { return setSource(text, opts); },
     // The structure of a Markdown text without showing it: { ok: true, meta, frontMatter, split, slides: [{ startLine, endLine, attrs }] } (attrs: the settings
     // comment of the slide, like { class: 'chapter', tier: 'core' }), or { ok: false, error } (front matter YAML). The same split a load or setSource makes
@@ -425,11 +429,19 @@
     return { meta, frontMatter: text.slice(0, text.length - body.length).trim(), bodyLine, split, chunks };
   }
 
+  // parseDeck with the errors turned into a result: { ok: true, parsed } or { ok: false, error } (a YAML error in the front matter, or anything else the split throws)
+  function tryParse(text) {
+    let pre;
+    try { pre = splitFrontmatter(text); } catch (e) { return { ok: false, error: `front matter (YAML): ${e.message}` }; }
+    try { return { ok: true, parsed: parseDeck(text, pre) }; } catch (e) { return { ok: false, error: e.message || String(e) }; }
+  }
+
   function outline(text) {
-    try {
-      const p = parseDeck(String(text));
-      return { ok: true, meta: p.meta, frontMatter: p.frontMatter, split: p.split, slides: p.chunks.map(c => ({ startLine: c.startLine, endLine: c.endLine, attrs: directives(c.text).attrs })) };
-    } catch (e) { return { ok: false, error: `front matter (YAML): ${e.message}` }; }
+    if (typeof text !== 'string') return { ok: false, error: 'The text must be a string' };
+    const r = tryParse(text);
+    if (!r.ok) return r;
+    const p = r.parsed;
+    return { ok: true, meta: p.meta, frontMatter: p.frontMatter, split: p.split, slides: p.chunks.map(c => ({ startLine: c.startLine, endLine: c.endLine, attrs: directives(c.text).attrs })) };
   }
 
   const slideStyles = [];         // the <style>s moved out of slides (see finishSlides), so a new render can take the old ones away
@@ -473,20 +485,34 @@
     }
   }
 
-  function setSource(text, opts = {}) {
+  function setSource(text, opts) {
+    opts = opts || {};
+    if (typeof text !== 'string') return { ok: false, error: 'The text must be a string' };
     if (pageSections || DeckMD.source == null) return { ok: false, error: 'Only a deck made from Markdown can be shown again from a text' };
     if (!window.Reveal?.isReady?.()) return { ok: false, error: 'The deck is not shown yet' };
-    text = String(text);
-    let parsed;
-    try { parsed = parseDeck(text); } catch (e) { return { ok: false, error: `front matter (YAML): ${e.message}` }; }
-    if (parsed.frontMatter !== DeckMD.frontMatter) return { ok: false, reload: true, error: 'The front matter changed: it is read once at load, so save the file and reload' };
+    const r = tryParse(text);
+    if (!r.ok) return r;
+    const parsed = r.parsed;
+    // The front matter is compared with line endings made alike: an editor keeps lines as \n whatever the file had
+    const eol = (t) => t.replace(/\r\n?/g, '\n');
+    if (eol(parsed.frontMatter) !== eol(DeckMD.frontMatter)) return { ok: false, reload: true, error: 'The front matter changed: it is read once at load, so save the file and reload' };
     const deck = document.querySelector('.slides');
     const before = Reveal.getIndices();
+    const oldSource = DeckMD.source, oldNodes = [...deck.childNodes], oldStyles = slideStyles.slice();
     DeckMD.source = text;                        // before the slides are built: the lazy source of slideInfo reads it
-    beginRender(true);
-    deck.textContent = '';
-    buildBody(deck, parsed);
-    finishSlides(deck, parsed.meta);
+    try {
+      beginRender(true);
+      deck.textContent = '';
+      buildBody(deck, parsed);
+      finishSlides(deck, parsed.meta);
+    } catch (e) {                                // a plugin or a fence threw halfway: put back what was shown, as it was
+      DeckMD.source = oldSource;
+      slideStyles.splice(0).forEach(st => st.remove());
+      deck.textContent = '';
+      oldNodes.forEach(n => deck.appendChild(n));
+      oldStyles.forEach(st => { document.body.appendChild(st); slideStyles.push(st); });
+      return { ok: false, error: `Showing the text failed, nothing was changed: ${e.message || e}` };
+    }
     Reveal.sync();
     let to = null;
     if (opts.line != null) { const at = DeckMD.slideAt(opts.line); if (at) to = Reveal.getIndices(at.section); }

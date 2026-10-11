@@ -142,6 +142,46 @@ function renderHooksCheck(d) {
   return true;
 }
 
+// Review of #17: what setSource / slideAt / outline do with bad input and with a plugin that throws
+function rollbackCheck(d) {
+  const DM = d.defaultView.DeckMD, R = d.defaultView.Reveal, t0 = DM.source;
+  const before = DM.slides().map(s => s.section), styles = () => [...d.querySelectorAll('body > style')].filter(x => /render-test/.test(x.textContent)).length;
+  R.slide(1);
+  const r = DM.setSource(t0.replace('## Three', '## BOOM'));
+  if (r.ok || r.reload || !/boom/.test(r.error)) return `a throwing plugin: ${JSON.stringify(r)}`;
+  if (DM.source !== t0) return 'DeckMD.source changed although it failed';
+  const now = DM.slides().map(s => s.section);
+  if (now.length !== before.length || now.some((x, i) => x !== before[i])) return 'the slides are not the ones that were shown before';
+  if (R.getIndices().h !== 1) return `the position moved: ${R.getIndices().h}`;
+  if (styles() !== 1) return `the moved <style> is gone or doubled: ${styles()}`;
+  if (!DM.setSource(`${t0}\n`).ok || DM.slides().length !== 3) return 'a good text after a failed one should work';
+  return true;
+}
+function badInputCheck(d) {
+  const DM = d.defaultView.DeckMD, t0 = DM.source;
+  for (const bad of ['abc', NaN, null, undefined, '', Infinity]) if (DM.slideAt(bad) !== null) return `slideAt(${String(bad)}) should be null: ${DM.slideAt(bad)?.startLine}`;
+  if (DM.slideAt('29')?.startLine !== 29) return 'slideAt("29") should work (a numeric string)';
+  for (const bad of [undefined, null, 123, {}]) {
+    if (DM.setSource(bad).ok) return `setSource(${JSON.stringify(bad)}) should fail`;
+    if (DM.outline(bad).ok) return `outline(${JSON.stringify(bad)}) should fail`;
+  }
+  if (!DM.setSource(t0, null).ok) return 'setSource(text, null) should work';
+  if (!DM.setSource(t0, { line: 'abc' }).ok) return 'setSource(text, { line: "abc" }) should work (the line is ignored)';
+  if (DM.source !== t0 || DM.slides().length !== 3) return 'the deck changed';
+  return true;
+}
+// An editor (CodeMirror) keeps lines as \n whatever the file had: the same text with \r\n is the same deck
+function crlfCheck(d) {
+  const DM = d.defaultView.DeckMD, t0 = DM.source, crlf = t0.replace(/\n/g, '\r\n');
+  const want = '[[5,10],[14,24],[29,29]]';
+  if (ranges(DM.outline(crlf).slides) !== want) return `outline: ${ranges(DM.outline(crlf).slides)}`;
+  const r = DM.setSource(crlf);
+  if (!r.ok) return `setSource: ${JSON.stringify(r)}`;
+  if (ranges(DM.slides()) !== want) return `ranges: ${ranges(DM.slides())}`;
+  if (/\r/.test(DM.slides()[1].source) || DM.slides()[1].notes !== 'say two') return 'source or notes have \\r in them';
+  return true;
+}
+
 // Deck list: view and &core links for each example deck. Checks for the decks that should be there, not a count (so adding examples doesn't break it)
 const LIST_DECKS = ['grid/talk.md', 'interactive/talk.md', 'math/talk.md', 'readme/rewrite.md', 'syntax/talk.md'];
 const mathCheck = d => {                                       // the math fixture: 3 formulas drawn (inline + block on slide 1, \(…\) on slide 3), 1 broken one in place
@@ -191,6 +231,10 @@ const CASES = [
   { group: 'set source', name: 'with the source plugin: source slides and the front matter page survive a render; currentSlide() on a source slide', url: `${R}?src=tests/fixtures/source/talk.md`, slides: 3, check: sourcePluginRenderCheck },
   { group: 'set source', name: '?core: a cut slide stays cut after setSource', url: `${R}?src=tests/fixtures/source/talk.md&core&defaultTier=none`, slides: 1, check: d => d.defaultView.DeckMD.setSource(d.defaultView.DeckMD.source).ok && d.defaultView.DeckMD.slides().length === 1 && ranges(d.defaultView.DeckMD.slides()) === '[[23,25]]' || '?core after setSource' },
   { group: 'set source', name: 'beforeRender/afterRender on every render, and moved <style>s do not pile up', url: `${R}?src=tests/fixtures/render/talk.md`, slides: 3, check: renderHooksCheck },
+  // Review of #17
+  { group: 'set source', name: 'a plugin that throws while the slides are built again: nothing changes (source, slides, position, moved <style>)', url: `${R}?src=tests/fixtures/render/talk.md`, slides: 3, check: rollbackCheck },
+  { group: 'set source', name: 'bad input: slideAt(not a number) is null, setSource/outline of a non-string fail, opts may be null', url: `${R}?src=tests/fixtures/lines/talk.md`, slides: 3, check: badInputCheck },
+  { group: 'set source', name: 'the same text with \\r\\n (an editor keeps \\n) is the same deck: no spurious reload', url: `${R}?src=tests/fixtures/lines/talk.md`, slides: 3, check: crlfCheck },
   { group: 'source', name: 'plugins: [source] → source slides under each slide, the front matter first under slide 1 (not under <!-- source: off -->; notes stay out, tags stay text, highlighted)', url: `${R}?src=tests/fixtures/source/talk.md`, slides: 3, notes: 1, check: d => {
       const src = [...d.querySelectorAll('.slides > section > section.source-slide code')].map(c => c.textContent);
       return (src.length === 3 && src[0].includes('title: source plugin test') && src[1].includes('# One') && src[1].includes('<b>tags</b>') && !src[1].includes('speaker note') && src[2].includes('tier: core') && !d.querySelector('.source-slide b') && d.querySelectorAll('.slides .source-slide code.hljs').length === 3)
