@@ -17,6 +17,7 @@ deckmd turns Markdown into reveal.js decks (npm package `deckmd`: `npx deckmd in
 
 - Code, comments, docs and commit messages are English. Match the surrounding style: comments say why, in plain sentences, and are as dense as their neighbours.
 - A behavior change comes with a test (`tests/build.test.mjs`, or a case in `tests/browser.html`) and with docs: the matching `docs/*.md` and both `README.md` and `README.ko.md` when it is user-visible.
+- Write Markdown for its structure first and its looks second. A section is a real heading, not a bold label (headings become anchors, and the READMEs are split into slides by their headings); one idea per paragraph, with a blank line between paragraphs; lists for parallel items. Markdown has little to decorate with, so it makes you get the structure right.
 - `js/deck.js` stays small. Optional features are plugins in `plugins/<name>/` (see `docs/plugins.md`).
 - `serve` and `?src` are deliberately restrictive (policy in the header of `tools/serve.mjs` and in `docs/usage.md`). Do not widen what is served or opened.
 - Do not commit `notes/`, `tests/out/`, `vendor/`, `dist/`, or anyone's private decks.
