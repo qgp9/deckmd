@@ -590,8 +590,13 @@
       st.textContent = inlineCss;
       document.body.appendChild(st);
     }
+    // ?use=source,math adds built-in plugins to this viewing (the deck list uses it: a deck's entry can say plugins: ['source']). Only a plain name is accepted, never a path or a URL,
+    // so a link can't bring code from somewhere else: it picks from the plugins that come with deckmd, like theme: reveal/white picks from reveal.js's.
+    // (Not ?plugins=: reveal.js takes every query parameter as one of its own settings, and its plugins setting is a list)
+    const urlPlugins = (params.get('use') || '').split(',').map(n => n.trim()).filter(n => /^[a-z][a-z0-9-]*$/.test(n));
     const plugins = [...list(CFG.plugins).map(p => ({ url: pluginUrl(p, pageBase), key: named(p, 'plugins', '.js') })),
-      ...list(meta.plugins).map(p => ({ url: pluginUrl(p), key: named(p, 'plugins', '.js') }))];
+      ...list(meta.plugins).map(p => ({ url: pluginUrl(p), key: named(p, 'plugins', '.js') })),
+      ...urlPlugins.map(p => ({ url: pluginUrl(p), key: named(p, 'plugins', '.js') }))];
     try { for (const p of plugins.filter(once)) { pluginKey = p.key; await loadScript(p.url, p.key); } }
     catch (e) { fail(e.message); return; }
     pluginKey = '';
@@ -733,14 +738,16 @@
     box.innerHTML = `<h1>${esc(CFG.title)}</h1><ul></ul>`;
     document.body.appendChild(box);
 
-    const items = Array.isArray(CFG.decks) ? CFG.decks.map(d => (typeof d === 'string' ? { src: d } : { ...d })) : await scanDecks();
+    // decks: 'auto' (scan the folders), or a list of paths and { src, title, core, plugins } where the string 'auto' stands for the scan: ['auto', { src: 'README.md', title: 'README' }]
+    const entries = Array.isArray(CFG.decks) ? CFG.decks : ['auto'];
+    const items = (await Promise.all(entries.map(async d => (d === 'auto' ? scanDecks() : [typeof d === 'string' ? { src: d } : { ...d }])))).flat();
     const ul = box.querySelector('ul');
     const page = location.pathname.split('/').pop();                  // '' means the current folder (= index.html)
-    const href = (src, extra = '') => `${page}?src=${encodeURIComponent(src)}${extra}`;
+    const href = (it, extra = '') => `${page}?src=${encodeURIComponent(it.src)}${it.plugins?.length ? `&use=${encodeURIComponent(list(it.plugins).join(','))}` : ''}${extra}`;   // plugins: this deck is opened with them added
     for (const it of items) {
       const li = document.createElement('li');
-      li.innerHTML = `<a class="t" href="${href(it.src)}">${esc(it.title || it.src)}</a>`
-        + `<span class="p">${esc(it.src)}</span><a class="c" href="${href(it.src, '&core')}">core</a>`;
+      li.innerHTML = `<a class="t" href="${href(it)}">${esc(it.title || it.src)}</a>`
+        + `<span class="p">${esc(it.src)}</span>${it.core === false ? '' : `<a class="c" href="${href(it, '&core')}">core</a>`}`;       // core: false = no short version: no link
       ul.appendChild(li);
       if (!it.title) titleOf(it.src).then(t => { if (t) li.querySelector('.t').textContent = t; });
     }

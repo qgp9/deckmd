@@ -1210,6 +1210,22 @@ test('pack: a font-face keeps only its woff2, whatever the order of the formats;
   assert.match(css, /local\("B Local"\)/);
 });
 
+test('site: the demo site lists the examples (the source plugin added, except the hand-split readme ones) and the two READMEs as decks', () => {
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/site.mjs')], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  const cfg = fs.readFileSync(path.join(ROOT, '_site/deck.config.js'), 'utf8');
+  const decks = JSON.parse(/DeckConfig = (\{[\s\S]*\});/.exec(cfg)[1]).decks;
+  const by = Object.fromEntries(decks.map(d => [d.src, d]));
+  assert.deepEqual(by['examples/syntax/talk.md'].plugins, ['source']);
+  assert.equal(by['examples/readme/rewrite.md'].plugins, undefined, 'the readme example is left as it is');
+  for (const f of ['README.md', 'README.ko.md']) {
+    assert.deepEqual([by[f]?.plugins, by[f]?.core], [['source'], false], f);
+    assert.ok(fs.existsSync(path.join(ROOT, '_site', f)), `${f} is copied into the site`);
+  }
+  assert.ok(fs.existsSync(path.join(ROOT, '_site/docs/usage.md')), 'the docs the READMEs link to are there too');
+  assert.equal(decks[0].src, 'examples/intro/talk.md', 'the home deck first');
+});
+
 test('unpack: only user files back to their places; packing again gives the same result', () => {
   // The real-world layout: deckmd/ inside a presentation repository (here a link pointing to this repository)
   const repo = path.join(SANDBOX, 'unpack-repo');
