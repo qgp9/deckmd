@@ -1226,6 +1226,46 @@ test('site: the demo site lists the examples (the source plugin added, except th
   assert.equal(decks[0].src, 'examples/intro/talk.md', 'the home deck first');
 });
 
+test('README: the TL;DR block runs as written (here-doc, both packs) and the sizes it quotes are about right; the Korean one has the same commands', (t) => {
+  if (process.platform === 'win32') return t.skip('the block is a POSIX shell script (sh, a here-doc)');
+  const block = file => /## TL;DR\s+```bash\n([\s\S]*?)```/.exec(fs.readFileSync(path.join(ROOT, file), 'utf8'))?.[1];
+  const en = block('README.md'), ko = block('README.ko.md');
+  assert.ok(en && ko, 'a TL;DR bash block in both READMEs');
+  // The block line by line: a shell line (the aligned comment after it, two or more spaces then #, differs by language) or a line of a here-doc body, which is
+  // kept exactly as written: a # in the body is Markdown (a heading), not a comment, and 'npx deckmd' in it is deck text, not a command
+  const lines = (text) => {
+    const out = [];
+    let end = null;
+    for (const line of text.split('\n')) {
+      if (end) { out.push({ body: true, line }); if (line === end) end = null; continue; }
+      const shell = line.replace(/\s{2,}#.*$/, '').trimEnd();
+      if (shell) out.push({ body: false, line: shell });
+      end = /<<-?\s*["']?(\w+)["']?$/.exec(shell)?.[1] ?? null;
+    }
+    assert.equal(end, null, `the block has a here-doc that is never closed (${end})`);
+    return out;
+  };
+  const commands = text => lines(text).map(l => l.line);
+  assert.deepEqual(commands(ko), commands(en), 'the same commands, and the same deck in the here-doc, in README.ko.md');
+  assert.ok(commands(en).includes('# Hello deckmd'), 'the here-doc body is kept, headings included');
+  const script = lines(en).map(l => (l.body ? l.line : l.line.replaceAll('npx deckmd', `node ${JSON.stringify(BUILD)}`))).join('\n');             // npx deckmd = this checkout
+  // the files the README says it makes (# → dist/…): they must come out, and be about the size it says
+  const claimed = [...en.matchAll(/→ (dist\/[^\s:]+)/g)].map(m => m[1].replace(/[.,)\]`'"]+$/, ''));                 // a trailing . , ) ` is punctuation of the sentence, not of the name
+  const named = kind => claimed.filter(f => f.includes(`.${kind}.`));
+  assert.ok(named('share').length === 1 && named('offline').length === 1, `the README block should name one share and one offline file (…share.html, …offline.html); it names: ${claimed.join(', ') || 'none'}`);
+  const dir = path.join(SANDBOX, 'tldr');
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  const r = spawnSync('sh', ['-c', script], { cwd: dir, encoding: 'utf8' });
+  assert.equal(r.status, 0, `${r.stderr}${r.stdout}`);
+  for (const f of claimed) assert.ok(fs.existsSync(path.join(dir, f)), `${f}: the README says the block makes it, but it does not (update the README, or this test)`);
+  const size = kind => fs.statSync(path.join(dir, named(kind)[0])).size;
+  const share = size('share'), offline = size('offline');
+  // the README says "about 100 KB" and "4 MB": when a bundle grows out of these ranges, update the numbers in README.md and README.ko.md
+  assert.ok(share > 50 * 1024 && share < 300 * 1024, `share bundle ${share} bytes: the README says about 100 KB`);
+  assert.ok(offline > 3 * 1048576 && offline < 6 * 1048576, `offline bundle ${offline} bytes: the README says 4 MB`);
+});
+
 test('unpack: only user files back to their places; packing again gives the same result', () => {
   // The real-world layout: deckmd/ inside a presentation repository (here a link pointing to this repository)
   const repo = path.join(SANDBOX, 'unpack-repo');
