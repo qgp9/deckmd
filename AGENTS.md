@@ -9,7 +9,7 @@ deckmd turns Markdown into reveal.js decks (npm package `deckmd`: `npx deckmd in
 ## Commands
 
 - `npm install` (jsdom is needed for packing and for the tests)
-- `npm test` = `node --test tests/build.test.mjs` (about 70 s; it runs the real CLI and writes `tests/out/`)
+- `npm test` = `node --test tests/build.test.mjs` (about a minute; it runs the real CLI and writes `tests/out/`)
 - Browser tests: `node tools/build.mjs serve --port 8000`, then open `http://localhost:8000/tests/browser.html` (run `npm test` first: some cases open bundles it writes to `tests/out/`)
 - Look at a deck: `node tools/build.mjs serve examples/grid/talk.md`
 
