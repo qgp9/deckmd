@@ -29,6 +29,7 @@
     ['js', `${NPM}markdown-it-container@4.0.0/dist/markdown-it-container.min.js`, 'markdown'],
     ['js', `${NPM}js-yaml@5.4.3/dist/browser/js-yaml.umd.min.js`, 'yaml'],
     ['js', 'js/defaults.js', ''],
+    ['js', 'js/libs.js', ''],                       // what DeckMD.register accepts (also read by tools/libs.mjs)
     ['js', 'js/notices.js', 'pack'],                 // license list written into bundled files
     ['js', 'js/pack.js', 'pack'],
     ['js', 'js/deck.js', ''],
@@ -37,6 +38,7 @@
   const localPath = url => `vendor/${url.replace(/^https?:\/\//, '')}`;
   // reveal.js built-in themes: theme: reveal/white → ${REVEAL}theme/white.css (deck.js resolves it, localize.mjs downloads it)
   const revealThemes = ['black', 'white', 'league', 'beige', 'night', 'serif', 'simple', 'solarized', 'moon', 'dracula', 'sky', 'blood', 'black-contrast', 'white-contrast'];
+
   window.DeckBoot = { list: LIST, localPath, reveal: REVEAL, revealThemes };
 
   const me = document.currentScript;

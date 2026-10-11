@@ -7,8 +7,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 import os from 'node:os';
+import vm from 'node:vm';
 import { spawn, spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'tests/out');
@@ -1115,6 +1116,15 @@ const fromVendorOrNet = async (url) => {
   const local = path.join(ROOT, 'vendor', url.replace(/^https?:\/\//, ''));
   return fs.existsSync(local) ? fs.readFileSync(local, 'utf8') : (await fetch(url)).text();
 };
+// register as deck.js builds its handle, from the same parser (js/boot.js) the browser uses
+function fakeRegister(spec) {
+  const boot = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js/libs.js'), 'utf8'), boot);
+  const set = urls => ({ libs: urls, css: urls.filter(u => /\.css/.test(u)), js: urls.filter(u => !/\.css/.test(u)) });
+  const items = boot.window.DeckLibs.libSpec(spec).items;
+  return { ...set(items.flatMap(i => i.urls)), ...Object.fromEntries(items.filter(i => i.name).map(i => [i.name, set(i.urls)])) };
+}
+
 async function mathMarkdown(config = {}) {
   const run = (code, ...args) => { const m = { exports: {} }; new Function('module', 'exports', 'window', 'self', ...args.map(a => a[0]), code)(m, m.exports, win, win, ...args.map(a => a[1])); return m.exports; };
   const win = {};
@@ -1122,7 +1132,7 @@ async function mathMarkdown(config = {}) {
   win.katex = run(await fromVendorOrNet('https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js'));
   const md = markdownit({ html: true });
   const loads = [], queue = [];
-  const DeckMD = { esc: x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), register: ({ libs }) => ({ libs, css: libs.filter(u => /\.css/.test(u)), js: libs.filter(u => !/\.css/.test(u)) }), loadCSS() {}, load: u => loads.push(u),
+  const DeckMD = { esc: x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), register: fakeRegister, loadCSS() {}, load: u => loads.push(u),
     init: fn => queue.push(fn), md, config, source: config.source ?? '$x$', frontMatter: config.frontMatter ?? '' };
   new Function('DeckMD', 'window', fs.readFileSync(path.join(ROOT, 'plugins/math/math.js'), 'utf8'))(DeckMD, win);
   assert.equal(md.renderer.rules.math_inline, undefined, 'nothing is set up before DeckMD.init runs');
@@ -1325,4 +1335,54 @@ test('launcher page loading deckmd from the CDN: same version uses this folder\'
   fs.writeFileSync(path.join(dir, 'index.html'), page('0.0.0-none'));
   const other = build(['talks/t1/talk.md', '-o', path.join(SANDBOX, 'cdn-other.html'), '--force'], dir);
   assert.match(other.err, /deckmd@0\.0\.0-none differs from this deckmd \(.+\), so it is read from the CDN/);
+});
+
+// register v2: named libraries from jsDelivr, one version per library, compat is required (Reserved) and checked against the pinned version
+function bootOf() {
+  const boot = { window: {} };
+  vm.runInNewContext(fs.readFileSync(path.join(ROOT, 'js/libs.js'), 'utf8'), boot);
+  return boot.window.DeckLibs;
+}
+
+test('register v2: npm/github descriptors become jsDelivr URLs; compat is required and must agree with the version', () => {
+  const { libSpec, libOf } = bootOf();
+  const lib = (item, name = 'x') => libSpec({ libs: { [name]: item } }, 'p').items[0];
+  const k = lib({ npm: 'katex@0.18.7', files: ['dist/katex.min.css', './dist/katex.min.js'], compat: 'exact' });
+  assert.deepEqual([...k.urls], ['https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.css', 'https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js']);
+  assert.equal(lib({ github: 'user/repo@v1.2.3', files: ['a.js'], compat: '~1.2.0' }).urls[0], 'https://cdn.jsdelivr.net/gh/user/repo@v1.2.3/a.js');
+  assert.equal(lib({ npm: '@scope/pkg@2.0.0', files: ['a.js'], compat: '' }).key, 'npm:@scope/pkg');
+  for (const compat of ['', 'none', 'exact', '^0.18', '~0.18.1']) assert.doesNotThrow(() => lib({ npm: 'katex@0.18.7', files: ['a'], compat }), compat);
+  assert.throws(() => lib({ npm: 'katex@0.18.7', files: ['a'] }), /compat is required/, 'no default: the author says it');
+  assert.throws(() => lib({ npm: 'katex@0.18.7', files: ['a'], compat: 'latest' }), /not 'exact'/);
+  assert.throws(() => lib({ npm: 'katex@0.18.7', files: ['a'], compat: '^0.17' }), /outside its own compat/, 'range vs pinned version');
+  assert.throws(() => lib({ npm: 'katex@0.18.7', files: ['a'], compat: '^1.0' }), /outside its own compat/);
+  assert.throws(() => lib({ npm: 'katex', files: ['a'], compat: 'exact' }), /needs a version/);
+  assert.throws(() => lib({ npm: 'katex@1.0.0', compat: 'exact' }), /files/);
+  for (const bad of ['', '../x.js', 'a/../../x.js', 'https://evil.example/x.js', '//evil.example/x.js', 5]) assert.throws(() => lib({ npm: 'katex@1.0.0', files: [bad], compat: 'exact' }), /files/, String(bad));
+  assert.equal(lib({ npm: 'x@1.2', files: ['a'], compat: '^1.2' }).version, '1.2', 'a short version is read as 1.2.0');
+  assert.doesNotThrow(() => lib({ github: 'u/r@v1', files: ['a'], compat: '^1' }));
+  assert.deepEqual([...lib({ npm: ' x@1.0.0 ', files: [' dist/x.js '], compat: 'exact' }).urls], ['https://cdn.jsdelivr.net/npm/x@1.0.0/dist/x.js'], 'spaces around a name or a file are not part of the URL');
+  assert.throws(() => lib({ npm: 'x@2', files: ['a'], compat: '^1.2' }), /outside its own compat/);
+  assert.throws(() => lib({ files: ['a'], compat: 'exact' }), /npm:/);
+  assert.throws(() => lib({ npm: 'katex@1.0.0', files: ['a'], compat: 'exact' }, 'css'), /cannot be a library name/);
+  assert.deepEqual({ ...libOf('https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js') }, { key: 'npm:katex', version: '0.18.7' });
+  assert.deepEqual({ ...libOf('https://cdn.jsdelivr.net/gh/u/r@v1/x.js') }, { key: 'github:u/r', version: 'v1' });
+  assert.equal(libOf('https://example.com/x.js'), null);
+  assert.equal(libSpec({ libs: ['https://cdn.jsdelivr.net/npm/x@1.0.0/x.js'] }).items[0].urls.length, 1, 'the URL list form still works (no compat)');
+});
+
+test('register v2: a second version of the same library is an error naming both; a repeat of the same version is fine', () => {
+  const urlOf = v => `https://cdn.jsdelivr.net/npm/katex@${v}/dist/katex.min.js`;
+  const src = fs.readFileSync(path.join(ROOT, 'js/deck.js'), 'utf8');
+  const c = new Function('window', `${src.match(/const claimed = new Map\(\);[\s\S]*?\n  }\n/)[0]}\nreturn claim;`)({ DeckLibs: bootOf() });
+  c(urlOf('0.18.7'), 'plugins/math');
+  c(urlOf('0.18.7'), 'plugins/other');
+  assert.throws(() => c(urlOf('0.17.0'), 'plugins/old'), /plugins\/old wants 0\.17\.0, but plugins\/math already uses 0\.18\.7/);
+  c('https://example.com/katex@9/x.js', 'plugins/old');
+});
+
+test('register v2: math declares its libraries in the new form and localize still learns them', async () => {
+  const { pluginLibs } = await import(pathToFileURL(path.join(ROOT, 'tools/libs.mjs')).href);
+  const math = pluginLibs(ROOT, { list: [] }).find(p => p.plugin === 'math');
+  assert.deepEqual(math.libs, ['https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.css', 'https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js']);
 });

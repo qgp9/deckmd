@@ -10,6 +10,7 @@ deck.config.js          config for this repository (the example list)
 js/
   boot.js               list of files to load (libraries as CDN URLs, versions only here). The launcher page loads only this
   defaults.js           config defaults in one place (theme: ember, etc.)
+  libs.js               what DeckMD.register accepts (npm/github libraries → jsDelivr URLs, one version per library); also read by tools/libs.mjs
   deck.js               loader: Markdown → slides → reveal.js
   notices.js            list of library and font licenses written at the top of a bundled file
   pack.js               deckmd helper (E key): modes, view options, PDF printing, packing into one file

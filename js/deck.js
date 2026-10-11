@@ -105,15 +105,25 @@
     ready: false,
     initQueue: [],
     init(fn) { if (this.ready) fn(this); else this.initQueue.push(fn); },
-    // A plugin's external files (libraries on a CDN): DeckMD.register({ libs: ['https://cdn.jsdelivr.net/npm/x@1.2.3/dist/x.min.css', '…/x.min.js'], load: 'auto' | 'manual' })
-    // goes at the very top of the plugin file, with the URLs written out in full: tools/localize.mjs runs the file to learn what to download.
-    // 'auto' (default): deck.js loads them in this order before the slides are built (CSS and JS, once per URL). 'manual': only declared; the plugin calls DeckMD.load(url) when it wants them.
-    // Either way the files are recorded in DeckMD.loaded, so packing embeds them (offline) or keeps the CDN URL (share), and data-local uses vendor/.
-    // It returns a handle for DeckMD.load: { libs, css, js } (the URLs). const katex = DeckMD.register({ libs: [css, js], load: 'manual' }); … DeckMD.load(katex) (all) or DeckMD.load(katex.js) (some)
+    // A plugin's files, declared at the very top of the plugin file (tools/localize.mjs runs the file to learn what to download; see js/boot.js for what libs accepts):
+    //   const lib = DeckMD.register({ libs: { katex: { npm: 'katex@0.18.7', files: ['dist/katex.min.css', 'dist/katex.min.js'], compat: 'exact', load: 'manual' } }, files: ['math.css'] });
+    //   libs: ['https://cdn.jsdelivr.net/npm/x@1.2.3/dist/x.min.js', …] (URLs written out in full) still works.
+    // load: 'auto' (default): deck.js loads them in this order before the slides are built (CSS and JS, once per URL). 'manual': only declared; the plugin calls DeckMD.load(…) when it wants them. Per library or for the whole call.
+    // files: the plugin's own CSS, relative to the plugin file (loaded with DeckMD.loadCSS).
+    // Either way the libraries are recorded in DeckMD.loaded, so packing embeds them (offline) or keeps the CDN URL (share), and data-local uses vendor/.
+    // One version of a jsDelivr library per page: a second one (from another plugin or another DeckMD.load) is an error that names both. compat (required for named libraries) is Reserved: not active yet.
+    // It returns a handle for DeckMD.load: { libs, css, js } (all the URLs) and one { libs, css, js } per named library: lib.katex.js[0]; DeckMD.load(lib) (all) or DeckMD.load(lib.katex) (one) or DeckMD.load(lib.katex.js)
     register(spec = {}) {
-      const libs = list(spec.libs);
-      const handle = { libs, css: libs.filter(isCssUrl), js: libs.filter(u => !isCssUrl(u)) };
-      if (spec.load !== 'manual') this.load(handle);
+      const who = owner(), { items, files } = DeckLibs.libSpec(spec, who);
+      const parts = items.map(i => ({ ...i, ...urlSet(i.urls) }));
+      const handle = { ...urlSet(parts.flatMap(p => p.urls)) };
+      for (const p of parts) if (p.name) handle[p.name] = urlSet(p.urls);
+      for (const p of parts) for (const u of p.urls) claim(u, who);
+      for (const f of files) {
+        if (!isCssUrl(f)) throw new Error(`${who}: register files: '${f}' is not a .css file (only CSS is supported)`);
+        if (spec.load !== 'manual') this.loadCSS(f);
+      }
+      for (const p of parts) if (p.load !== 'manual') this.load(p.urls);
       return handle;
     },
     // load(url | [url, …] | handle from register). One after the other, each URL once. Returns a promise
@@ -122,6 +132,7 @@
       if (what && typeof what === 'object') return this.load(what.libs);
       const url = what;
       if (!libCache.has(url)) {
+        claim(url, owner());
         const href = window.DeckBoot?.useLocal && /^https?:/.test(url) ? new URL(window.DeckBoot.localPath(url.split(/[?#]/)[0]), window.DeckBoot.root).href : url;
         const run = () => (isCssUrl(url) ? loadCSS(href, url) : loadScript(href, url));
         libCache.set(url, (libChain = libChain.then(run, run)));              // one after the other: a plugin library may need the one before it
@@ -139,6 +150,16 @@
   const pending = [];
   const libCache = new Map();
   const isCssUrl = u => /\.css(?:[?#]|$)/i.test(u);
+  const urlSet = urls => ({ libs: urls, css: urls.filter(isCssUrl), js: urls.filter(u => !isCssUrl(u)) });
+  const owner = () => document.currentScript?.dataset.src || pluginKey || 'a plugin';       // who asks, for an error message
+  const claimed = new Map();                                                  // library key (npm:katex) → { version, who }
+  function claim(url, who) {
+    const lib = window.DeckLibs?.libOf(url);
+    if (!lib) return;
+    const had = claimed.get(lib.key);
+    if (had && had.version !== lib.version) throw new Error(`${lib.key.replace(/^\w+:/, '')}: ${who} wants ${lib.version}, but ${had.who} already uses ${had.version}. One version per library per page: use the same version in both`);
+    if (!had) claimed.set(lib.key, { version: lib.version, who });
+  }
   let libChain = Promise.resolve();
   let pluginKey = '';
 

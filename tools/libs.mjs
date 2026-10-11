@@ -7,6 +7,11 @@ import vm from 'node:vm';
 
 const isCssUrl = u => /\.css(?:[?#]|$)/i.test(u);                  // the same rule as isCssUrl in js/deck.js
 
+// What register accepts is read by js/libs.js (DeckLibs.libSpec), the same code the browser runs
+const boot = { window: {} };
+vm.runInNewContext(fs.readFileSync(new URL('../js/libs.js', import.meta.url), 'utf8'), boot);
+const { libSpec } = boot.window.DeckLibs;
+
 // Anything you read, call or construct gives another harmless stand-in (and turns into '' as text)
 const inert = () => new Proxy(function () {}, {
   get: (_, key) => (key === Symbol.toPrimitive ? () => '' : inert()),
@@ -21,12 +26,12 @@ export function pluginLibs(root, notices) {
     const file = path.join(dir, name, `${name}.js`);
     if (!fs.existsSync(file)) continue;
     const libs = [];
-    const DeckMD = new Proxy({ register: (spec = {}) => { const l = [].concat(spec.libs ?? []); libs.push(...l); return { libs: l, css: l.filter(isCssUrl), js: l.filter(u => !isCssUrl(u)) }; } }, { get: (t, k) => (k in t ? t[k] : inert()) });
+    const DeckMD = new Proxy({ register: (spec = {}) => { const l = libSpec(spec, name).items.flatMap(i => i.urls); libs.push(...l); return { libs: l, css: l.filter(isCssUrl), js: l.filter(u => !isCssUrl(u)) }; } }, { get: (t, k) => (k in t ? t[k] : inert()) });
     const window = {};
     const ctx = vm.createContext({ DeckMD, DeckNotices: notices, window, document: inert(), location: { search: '', href: 'http://localhost/' }, Reveal: inert(), console });
     window.DeckMD = DeckMD;
     window.DeckNotices = notices;
-    try { vm.runInContext(fs.readFileSync(file, 'utf8'), ctx, { filename: file, timeout: 2000 }); } catch { /* after the register call: nothing to learn */ }
+    try { vm.runInContext(fs.readFileSync(file, 'utf8'), ctx, { filename: file, timeout: 2000 }); } catch (e) { if (/^\S+: library /.test(e.message)) throw e; /* after the register call: nothing to learn */ }
     if (libs.length) found.push({ plugin: name, libs });
   }
   return found;

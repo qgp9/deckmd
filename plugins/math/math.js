@@ -1,4 +1,4 @@
-const katex = DeckMD.register({ libs: ['https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.css', 'https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js'], load: 'manual' });
+const katex = DeckMD.register({ libs: { katex: { npm: 'katex@0.18.7', files: ['dist/katex.min.css', 'dist/katex.min.js'], compat: 'exact', load: 'manual' } }, files: ['math.css'] }).katex;
 // math plugin — TeX in Markdown, drawn with KaTeX. plugins: [math] in the front matter. Docs: docs/plugins.md
 //   $x^2$  \(x^2\)   in a sentence          $$ … $$   \[ … \]   as a block (on lines of its own) or inside a sentence
 //   math: { output: htmlAndMathml (default) | html | mathml, macros: { '\RR': '\mathbb{R}' } }   in the front matter
@@ -7,7 +7,6 @@ const katex = DeckMD.register({ libs: ['https://cdn.jsdelivr.net/npm/katex@0.18.
 (() => {
   const { esc } = DeckMD;
   window.DeckNotices?.list.push({ name: 'KaTeX', spdx: 'MIT', match: /\/npm\/katex@/ });
-  DeckMD.loadCSS('math.css');
 
   let opts = {}, output = 'htmlAndMathml';
 

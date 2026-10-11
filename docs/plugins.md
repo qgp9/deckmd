@@ -141,8 +141,8 @@ DeckMD.afterRender(section => { /* adjust the slide after it is built */ });
 | `DeckMD.registerRun(name, section => cleanup)` | Every time a slide with the slide setting `run: name` is shown. The returned function is called on leaving ([interactive.md](interactive.md)) |
 | `DeckMD.loadCSS(path)` | CSS next to the plugin itself |
 | `DeckMD.init(deck => …)` | Runs `fn` once the deck's data exists: `deck.md` (the markdown-it instance), `deck.config` (this deck's front matter) and `deck.source`. Use it for anything that needs them: when the plugin is inside a bundled file it runs while the page is read, before they exist (from a server it runs later, so it would work by luck). Declaring things (`registerFence`, `afterRender`, `loadCSS`, `register`) needs no `init` |
-| `DeckMD.register({ libs: [url, …], load: 'auto' \| 'manual' })` | Declares the libraries the plugin needs from the internet. Put it at the very top of the plugin file, with the URLs written out in full (no template strings): `node tools/localize.mjs` runs the file in a sandbox to learn what to download into `vendor/`. `load: 'auto'` (default): deck.js loads them in this order, CSS and JS, once each, before the slides are built. `'manual'`: only declared; the plugin loads them when it wants (only for some decks, or depending on a setting: the math plugin loads KaTeX only when the Markdown has a formula, and no CSS for `output: mathml`). It returns a handle `{ libs, css, js }` (the URLs) to give to `DeckMD.load`: `const katex = DeckMD.register({ … });` then `DeckMD.load(katex)` or `DeckMD.load(katex.js)` |
-| `DeckMD.load(url \| [url, …] \| handle)` | Loads libraries, in order (each URL once; returns a promise). The handle is what `DeckMD.register` returned. It uses `vendor/` with `data-local`, and is recorded, so packing embeds it (offline) or keeps the CDN URL (share). A plugin can add its license with `DeckNotices.list.push({ name, spdx, match })` |
+| `DeckMD.register({ libs, files, load })` | Declares what the plugin needs. Put it at the very top of the plugin file, written out in full (no template strings or variables): `node tools/localize.mjs` runs the file in a sandbox to learn what to download into `vendor/`. See [Declaring libraries](#declaring-libraries). It returns a handle to give to `DeckMD.load`: `{ libs, css, js }` (all the URLs) and one such object per named library (`lib.katex.js`) |
+| `DeckMD.load(url \| [url, …] \| handle)` | Loads libraries, in order (each URL once; returns a promise). The handle is what `DeckMD.register` returned (or a part of it: `lib.katex`, `lib.katex.js`). It uses `vendor/` with `data-local`, and is recorded, so packing embeds it (offline) or keeps the CDN URL (share). A plugin can add its license with `DeckNotices.list.push({ name, spdx, match })` |
 | `DeckMD.md`, `DeckMD.config`, `DeckMD.source` | markdown-it, the front matter, the Markdown text. Not there yet while a plugin file in a bundled file is read: use `DeckMD.init` |
 | `DeckMD.esc(text)` | HTML escape |
 | `DeckMD.version` | The deckmd version (a string like `'0.2.0'`). For information (messages such as "requires deckmd 0.2 or later", bug reports) |
@@ -152,3 +152,23 @@ DeckMD.afterRender(section => { /* adjust the slide after it is built */ });
 - Paths can be written as literal strings or computed (when packing, what was actually loaded is recorded and embedded).
 - Buttons and JS that runs when a slide is shown: see [interactive.md](interactive.md).
 - For a plugin shared by several decks, put it in your own repository's `plugins/<name>/` and reference it relative to the launcher page, like `plugins: [/plugins/x/x.js]`, so it survives updating `deckmd/`.
+
+### Declaring libraries
+
+```js
+const lib = DeckMD.register({
+  libs: {
+    katex: { npm: 'katex@0.18.7', files: ['dist/katex.min.css', 'dist/katex.min.js'], compat: 'exact', load: 'manual' },
+    // another: { github: 'user/repo@v1.2.3', files: ['dist/x.js'], compat: '^1.2' },
+  },
+  files: ['math.css'],                          // the plugin's own CSS, next to the plugin file
+});
+DeckMD.load(lib.katex);                         // later, when the plugin wants it
+```
+
+- A library is `npm: 'name@version'` or `github: 'user/repo@tag'` with `files` (paths inside the package). deckmd turns them into jsDelivr URLs, the same way for the browser, `localize` and packing. The version is required: a library without one cannot be pinned, localized or checked.
+- `load: 'auto'` (default): deck.js loads them in this order, CSS and JS, once each, before the slides are built. `'manual'`: only declared; the plugin loads them when it wants (the math plugin loads KaTeX only when the Markdown has a formula, and no CSS for `output: mathml`). It can be set on a library or on the whole call.
+- `files` (outside `libs`) are the plugin's own CSS files, relative to the plugin file; only `.css` is supported.
+- The older form still works: `libs: ['https://cdn.jsdelivr.net/npm/x@1.2.3/dist/x.min.js', …]`, a list of URLs written out in full.
+- One version of a library per page. If another plugin (or a `DeckMD.load` of a jsDelivr URL) uses the same library in a different version, it is an error that names both. Two plugins that want the same version share one download.
+- `compat` is **required** for a named library, and is **Reserved: not active yet; declaring it now helps avoid conflicts later.** It says how this plugin would accept another version of the library. Write `'exact'` when unsure, and for a library that has no semver versions; `'none'` or `''` mean no policy; a range (`'^1.2'`, `'~1.2.3'`) says which versions would also do. Today the only checks are that a range agrees with the library's own version (`katex@0.18.7` with `compat: '^0.17'` is an error) and that two different versions of one library are an error. Picking one version that fits every plugin comes later.
