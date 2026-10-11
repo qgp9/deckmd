@@ -51,7 +51,7 @@ const katex = DeckMD.register({ libs: ['https://cdn.jsdelivr.net/npm/katex@0.18.
     return true;
   }
 
-  // Block: a line that starts with $$ (or \[) up to the line that ends with $$ (or \]); one line is enough ($$ x $$)
+  // Block: a line that starts with $$ (or \[) up to the line that ends with $$ (or \]); one line is enough ($$ x $$). No blank line inside (TeX doesn't allow one either)
   function block(state, startLine, endLine, silent) {
     if (state.sCount[startLine] - state.blkIndent >= 4) return false;
     const first = state.bMarks[startLine] + state.tShift[startLine];
@@ -61,11 +61,13 @@ const katex = DeckMD.register({ libs: ['https://cdn.jsdelivr.net/npm/katex@0.18.
     const lineText = n => state.src.slice(state.bMarks[n] + state.tShift[n], state.eMarks[n]);
     const parts = [];
     let rest = lineText(startLine).slice(2).trimEnd(), n = startLine;
+    if (rest.includes(close) && !rest.endsWith(close)) return false;            // $$ x $$ and then text on the same line: a formula inside a sentence (the inline rule)
     for (;;) {
       if (rest.endsWith(close)) { parts.push(rest.slice(0, -close.length)); break; }
       parts.push(rest);
       if (++n >= endLine) return false;                                         // never closed: not a block
       rest = lineText(n).trimEnd();
+      if (!rest.trim()) return false;                                           // a blank line ends a paragraph, as in TeX: not a block (so it can't swallow what follows)
     }
     const tex = parts.join('\n').trim();
     if (!tex) return false;
