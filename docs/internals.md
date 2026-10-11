@@ -17,6 +17,7 @@ js/
 css/base.css            shared rules (.cols .card .chapter … and the variable list). Always loaded first, regardless of theme
 themes/<name>/<name>.css  themes: ember (default), catppuccin, solarized
 plugins/grid/           built-in plugin (```grid cell diagrams and ```table tables)
+plugins/math/           built-in plugin: TeX in Markdown with KaTeX (plugins: [math])
 plugins/source/         built-in plugin: under each slide, a slide with its Markdown source (plugins: [source])
 templates/              files to copy into your talks repository: index.html, index.cdn.html (deckmd from the CDN; init fills in the version), index.full.html, deck.config.js, deck.config.full.js, talk.md
 tools/
@@ -27,6 +28,7 @@ tools/
   init.mjs              npx deckmd init: starts a talks repository from templates/ (build.mjs hands over to it)
   add.mjs               npx deckmd add: adds slides/<name>/deck.md (in a project) or ./<name>.md from the starter
   localize.mjs          downloads CDN libraries, fonts and licenses into vendor/
+  libs.mjs              runs plugins/*/*.js in a sandbox to learn their DeckMD.register libs (for localize.mjs and the tests)
   release.mjs           builds the offline zip (distribution on hold)
 scripts/version.mjs     repo maintenance, not published: npm version copies the new version into DeckMD.version
 scripts/site.mjs        builds the demo site into _site/ (intro deck as home, all examples in ?deck-list); .github/workflows/pages.yml deploys it on push to main
@@ -69,7 +71,7 @@ The npm package contains only the runtime (`js/ css/ themes/ plugins/`), `templa
 ## Tools
 
 - **build.mjs**: opens the launcher page in jsdom (files = disk, libraries = `vendor/` or the internet) and calls `DeckPack.pack(mode)`. It only fills in what jsdom lacks: `fetch`, `matchMedia`, `ResizeObserver`. Unpacking (`--unpack`) works on strings, without jsdom.
-- **localize.mjs**: downloads the CDN URLs in the `boot.js` list, reveal.js's built-in themes, and the license texts (`notices.js`) into `vendor/<URL as is>`. It also follows `url(…)` inside CSS (fonts). Paths are derived directly from URLs, so `data-local` finds them by the same rule.
+- **localize.mjs**: downloads the CDN URLs in the `boot.js` list, reveal.js's built-in themes, the libraries plugins declare with `DeckMD.register` (found by `libs.mjs`), and the license texts (`notices.js`) into `vendor/<URL as is>`. It also follows `url(…)` inside CSS (fonts). Paths are derived directly from URLs, so `data-local` finds them by the same rule.
 - **release.mjs**: offline zip (committed files + `vendor/` + a `data-local` sample). Distribution is on hold.
 - **serve.sh / serve.cmd, ps1**: static file server (the node and php fallbacks also serve directory listings, so the deck list `scan` works). **serve.cmd and ps1 (Windows) have not been tested on Windows yet** (macOS has no PowerShell, so they were never run). To test: a window opens and shows the URL, it moves to the next port when the port is in use, directory listing for a folder without `index.html` (`scan`), Ctrl+C stops it.
 

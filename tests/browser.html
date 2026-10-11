@@ -41,7 +41,12 @@ function parseCheck(d) {
 }
 
 // Deck list: view and &core links for each example deck. Checks for the decks that should be there, not a count (so adding examples doesn't break it)
-const LIST_DECKS = ['grid/talk.md', 'interactive/talk.md', 'readme/rewrite.md', 'syntax/talk.md'];
+const LIST_DECKS = ['grid/talk.md', 'interactive/talk.md', 'math/talk.md', 'readme/rewrite.md', 'syntax/talk.md'];
+const mathCheck = d => {                                       // the math fixture: 3 formulas drawn (inline + block on slide 1, \(…\) on slide 3), 1 broken one in place
+  const slides = d.querySelector('.slides').textContent;
+  return (d.querySelectorAll('.slides .katex').length === 3 && d.querySelectorAll('.slides .math-error').length === 1 && slides.includes('costs $5 and $10') && slides.includes('$x$ in a code block') && slides.includes('a_b c_d stay text'))
+    || `katex ${d.querySelectorAll('.slides .katex').length} · errors ${d.querySelectorAll('.slides .math-error').length}`;
+};
 function listCheck(d) {
   const hrefs = [...d.querySelectorAll('.deck-list a')].map(a => decodeURIComponent(a.getAttribute('href')));
   const missing = LIST_DECKS.filter(f => !hrefs.includes(`?src=examples/${f}`) || !hrefs.includes(`?src=examples/${f}&core`));
@@ -66,6 +71,13 @@ const CASES = [
         || `source slides: ${JSON.stringify(src)}`; } },
   { group: 'source', name: '?source=off hides them (the plugin stays loaded)', url: `${R}?src=tests/fixtures/source/talk.md&source=off`, slides: 3, check: d => d.querySelectorAll('.slides .source-slide').length === 0 || 'a source slide is there' },
   { group: 'source', name: '?core: a cut slide takes its source with it', url: `${R}?src=tests/fixtures/source/talk.md&core&defaultTier=none`, slides: 1, check: d => d.querySelectorAll('.slides .source-slide').length === 2 || 'source slides after ?core (front matter + source of the one left)' },
+  { group: 'view', name: 'example math', url: `${R}?src=examples/math/talk.md`, slides: 5, check: d => (d.querySelectorAll('.slides .katex').length === 6 && d.querySelectorAll('.slides .math-error').length === 1) || 'formulas / errors in the math example' },
+  { group: 'math', name: 'plugins: [math] → formulas are drawn; money, escapes and code stay text; a mistake stays in place', url: `${R}?src=tests/fixtures/math/talk.md`, slides: 3, check: mathCheck },
+  { group: 'math', name: 'math: { output: mathml } → MathML in the page, and the KaTeX CSS (with its fonts) is not loaded at all', url: `${R}?src=tests/fixtures/math-mathml/talk.md`, slides: 1, check: d =>
+      (d.querySelectorAll('.slides .katex math').length === 2 && !d.defaultView.DeckMD.loaded.some(r => /katex\.min\.css/.test(r.key)) && d.defaultView.DeckMD.loaded.some(r => /katex\.min\.js/.test(r.key)))
+      || `math elements ${d.querySelectorAll('.slides .katex math').length} · loaded ${d.defaultView.DeckMD.loaded.map(r => r.key.split('/').pop()).join(',')}` },
+  { group: 'bundled', name: 'math offline (KaTeX and its fonts inside)', url: `${OUT}math.offline.html`, slides: 3, ext: 0, built: true, check: mathCheck },
+  { group: 'bundled', name: 'math share (KaTeX from the CDN)', url: `${OUT}math.share.html`, slides: 3, built: true, check: mathCheck },
   { group: 'errors', name: 'front matter YAML error', url: `${R}?src=tests/fixtures/bad-yaml/talk.md`, text: ["Can't open the deck", 'front matter (YAML)'] },
   // ?src must stay under the folder of the page (the launcher page in tests/fixtures/under/)
   { group: '?src', name: 'a path under the page folder opens', url: `${R}tests/fixtures/under/index.html?src=talk.md`, slides: 1 },

@@ -63,6 +63,35 @@
       pending.push(p);
       return p;
     },
+    // Code that needs the deck's data (DeckMD.config = the front matter, DeckMD.source, DeckMD.md): DeckMD.init(deck => { … }). It runs once those exist, before the slides are built.
+    // A plugin file runs when the page is read in a bundled file (before any of that exists) and later when deck.js loads it from a server, so use init for anything beyond declaring things.
+    ready: false,
+    initQueue: [],
+    init(fn) { if (this.ready) fn(this); else this.initQueue.push(fn); },
+    // A plugin's external files (libraries on a CDN): DeckMD.register({ libs: ['https://cdn.jsdelivr.net/npm/x@1.2.3/dist/x.min.css', '…/x.min.js'], load: 'auto' | 'manual' })
+    // goes at the very top of the plugin file, with the URLs written out in full: tools/localize.mjs runs the file to learn what to download.
+    // 'auto' (default): deck.js loads them in this order before the slides are built (CSS and JS, once per URL). 'manual': only declared; the plugin calls DeckMD.load(url) when it wants them.
+    // Either way the files are recorded in DeckMD.loaded, so packing embeds them (offline) or keeps the CDN URL (share), and data-local uses vendor/.
+    // It returns a handle for DeckMD.load: { libs, css, js } (the URLs). const katex = DeckMD.register({ libs: [css, js], load: 'manual' }); … DeckMD.load(katex) (all) or DeckMD.load(katex.js) (some)
+    register(spec = {}) {
+      const libs = list(spec.libs);
+      const handle = { libs, css: libs.filter(isCssUrl), js: libs.filter(u => !isCssUrl(u)) };
+      if (spec.load !== 'manual') this.load(handle);
+      return handle;
+    },
+    // load(url | [url, …] | handle from register). One after the other, each URL once. Returns a promise
+    load(what) {
+      if (Array.isArray(what)) return Promise.all(what.map(u => this.load(u)));
+      if (what && typeof what === 'object') return this.load(what.libs);
+      const url = what;
+      if (!libCache.has(url)) {
+        const href = window.DeckBoot?.useLocal && /^https?:/.test(url) ? new URL(window.DeckBoot.localPath(url.split(/[?#]/)[0]), window.DeckBoot.root).href : url;
+        const run = () => (isCssUrl(url) ? loadCSS(href, url) : loadScript(href, url));
+        libCache.set(url, (libChain = libChain.then(run, run)));              // one after the other: a plugin library may need the one before it
+        pending.push(libCache.get(url));
+      }
+      return libCache.get(url);
+    },
     // read by pack.js
     here, staticTags, pageSlidesHTML,
     pageMetaText: pageMetaEl?.textContent ?? null,
@@ -71,6 +100,9 @@
     assets: null,          // table of embedded assets
   };
   const pending = [];
+  const libCache = new Map();
+  const isCssUrl = u => /\.css(?:[?#]|$)/i.test(u);
+  let libChain = Promise.resolve();
   let pluginKey = '';
 
   // Files already put into the page when packing (pack.js) (<style data-src>, <script data-src>) are not loaded again
@@ -539,6 +571,8 @@
     if (modeWant) DeckMD.setMode(modeWant);
 
     DeckMD.md = makeMarkdown();
+    DeckMD.ready = true;
+    for (const fn of DeckMD.initQueue.splice(0)) fn(DeckMD);            // plugin code that was waiting for the config, the source and markdown-it (a bundled file's plugins run earlier)
     // Theme: the front matter's if present, otherwise the config's. CSS and plugins: the config's + the front matter's (each file once)
     const named = (v, dir, ext) => (/[/.]/.test(v) ? v.replace(/^\/+/, '') : `${dir}/${v}/${v}${ext}`);
     const themes = meta.theme != null ? list(meta.theme).map(themeFile).map(t => ({ url: themeUrl(t), key: named(t, 'themes', '.css') }))
@@ -562,7 +596,8 @@
     catch (e) { fail(e.message); return; }
     pluginKey = '';
 
-    await Promise.all(pending);
+    try { await Promise.all(pending); }                                  // CSS and the libraries plugins asked for
+    catch (e) { fail(e.message); return; }
     const deck = document.querySelector('.slides');
     if (!pageSections) {
       const split = params.get('split') || meta.split || CFG.split || (hasRules(body) ? 'rules' : 'headings');

@@ -11,6 +11,10 @@ Pack a deck into a single HTML file. Once a finished deck is packed, it keeps op
 
 Most of the size is the Pretendard font (about 2.7 MB) and code highlighting (about 0.9 MB).
 
+**An offline bundle holds what this deck loaded.** A plugin that needs libraries only for some decks loads them only then, so only those go in: the math plugin loads KaTeX (JS, CSS and woff2 fonts, about 0.5 MB) only when the Markdown has a formula. A deck without one is packed without KaTeX (and a share bundle doesn't ask for it when it opens). `node tools/localize.mjs` is the opposite: it downloads every library a plugin declares, whatever deck uses it, so that a project with `data-local` works offline for any deck.
+
+A bundle is a frozen copy to open, not a kit to keep adding to: its Markdown is embedded and its libraries are only the ones that deck used. To keep working on a deck, keep the project (with `localize.mjs` and `data-local` if you need to work offline). If you [unpack](#unpacking---unpack) a bundle, the extracted files load their libraries like any project, from the CDN or from `vendor/`, so a formula added later works as long as you have internet or a localized `vendor/`.
+
 ## In the browser: the E key
 
 While viewing a deck, press **E** → "Offline" or "Share" → the file is downloaded. No shell needed.

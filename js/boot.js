@@ -43,6 +43,7 @@
   if (!me) return;                                     // when a tool only reads the list
   const root = new URL('..', me.src);
   const useLocal = me.hasAttribute('data-local');
+  Object.assign(window.DeckBoot, { useLocal, root: root.href });         // deck.js maps a plugin's CDN files to vendor/ the same way
   const skip = new Set((me.dataset.skip || '').split(/[\s,]+/).filter(Boolean));
   const config = me.dataset.config ?? 'deck.config.js';
 
