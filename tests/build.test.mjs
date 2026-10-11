@@ -1023,7 +1023,7 @@ async function sourcePlugin(query = '', frontMatter = '') {
   const { document } = dom.window;
   const hooks = [], handlers = [], slid = [];
   const Reveal = { on: (type, fn) => handlers.push([type, fn]), slide: (h, v) => slid.push([h, v]) };
-  const DeckMD = { sources: new WeakMap(), frontMatter, loadCSS() {}, afterRender: fn => hooks.push(fn) };
+  const DeckMD = { sources: new WeakMap(), slideInfo: new WeakMap(), frontMatter, loadCSS() {}, afterRender: fn => hooks.push(fn) };
   new Function('DeckMD', 'document', 'location', 'window', 'Reveal', fs.readFileSync(path.join(ROOT, 'plugins/source/source.js'), 'utf8'))(DeckMD, document, dom.window.location, { Reveal }, Reveal);
   const slide = (text, attrs = {}) => {
     const sec = document.createElement('section');
@@ -1033,29 +1033,32 @@ async function sourcePlugin(query = '', frontMatter = '') {
     return sec;
   };
   const run = sec => hooks.forEach(h => h(sec, DeckMD));
-  return { document, slide, run, handlers, slid, hooks };
+  return { document, slide, run, handlers, slid, hooks, slideInfo: DeckMD.slideInfo };
 }
 
 test('source plugin: a stack with the slide and a source slide under it; escaped text; off per slide, by ?source=off, and for HTML decks', async () => {
   const p = await sourcePlugin();
   const a = p.slide('<!-- class: center -->\n# A <b>x</b>');
+  const built = p.slide('<!-- fit -->\n\n## Built (cont.)\n\nbody');                                  // a deck split by headings: DeckMD.sources is text deckmd built
+  p.slideInfo.set(built, { withoutNotes: 'body' });                                                // the lines of the file are what the source slide shows
   const off = p.slide('# no', { 'data-source': 'off' });
   const html = p.slide(null);                                             // a deck written in HTML: no Markdown to show
-  [a, off, html].forEach(p.run);
+  [a, off, html, built].forEach(p.run);
   const stack = p.document.querySelector('.slides > section');
   assert.equal(stack.children.length, 2);
   assert.equal(stack.firstElementChild, a, 'the slide itself comes first');
   const code = stack.querySelector('.source-slide pre code.language-markdown');
   assert.equal(code.textContent, '<!-- class: center -->\n# A <b>x</b>');
   assert.equal(code.querySelector('b'), null, 'tags are text, not elements');
-  assert.equal(p.document.querySelectorAll('.source-slide').length, 1, 'not under data-source=off, not under a slide without Markdown');
-  assert.equal(p.document.querySelectorAll('.slides > section').length, 3);
+  assert.equal(p.document.querySelectorAll('.source-slide').length, 2, 'not under data-source=off, not under a slide without Markdown');
+  assert.equal(p.document.querySelectorAll('.slides > section').length, 4);
+  assert.equal([...p.document.querySelectorAll('.source-slide code')].pop().textContent, 'body', 'the lines of the file (slideInfo), not the text that was built (<!-- fit -->, a title)');
   const own = p.slide('<!-- a slide that is a stack of its own -->');       // raw HTML <section>s inside a Markdown slide
   own.innerHTML = '<section>top</section><section>below</section>';
   p.run(own);
   assert.ok(own.parentElement.classList.contains('slides'), 'still directly in .slides: not wrapped again');
   assert.equal(own.children.length, 2);
-  assert.equal(p.document.querySelectorAll('.source-slide').length, 1, 'still just the one');
+  assert.equal(p.document.querySelectorAll('.source-slide').length, 2, 'still just the two: nothing added for a slide that is a stack');
   const q = await sourcePlugin('?source=off');
   q.run(q.slide('# x'));
   assert.equal(q.document.querySelectorAll('.source-slide').length, 0, '?source=off');

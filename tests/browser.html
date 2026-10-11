@@ -243,7 +243,18 @@ const CASES = [
   { group: 'source', name: '?core: a cut slide takes its source with it', url: `${R}?src=tests/fixtures/source/talk.md&core&defaultTier=none`, slides: 1, check: d => d.querySelectorAll('.slides .source-slide').length === 2 || 'source slides after ?core (front matter + source of the one left)' },
   { group: 'view', name: 'README.md is a deck: no slide breaks, split by headings; ?use=source adds a source slide under each slide', url: `${R}?src=README.md&use=source`, check: d => {
       const top = d.querySelectorAll('.slides > section').length, withSource = d.querySelectorAll('.slides > section > section.source-slide').length;
-      return (top >= 10 && withSource === top && d.querySelector('.slides h1')?.textContent.trim() === 'deckmd') || `slides ${top} · with a source slide ${withSource}`; } },
+      // no source slide shows what deckmd built for a split-by-headings deck (<!-- fit -->), and no slide runs over the bottom: a slide that is too long is shrunk (data-fit), also inside the vertical stack the source plugin makes
+      const built = [...d.querySelectorAll('.slides .source-slide code')].filter(c => /<!--\s*(class: chapter; )?fit/.test(c.textContent)).length;
+      const H = d.defaultView.Reveal.getConfig().height * 0.96;
+      const over = [...d.querySelectorAll('.reveal .slides section[data-fit]')].filter(sec => {
+        const stack = sec.parentElement.matches('section') ? sec.parentElement : null, ss = stack?.style.display, sd = sec.style.display;
+        if (stack) stack.style.display = 'block';
+        sec.style.display = 'block';
+        const run = sec.scrollHeight > H && sec.style.fontSize !== '60%';
+        sec.style.display = sd; if (stack) stack.style.display = ss;
+        return run;
+      }).length;
+      return (top >= 10 && withSource === top && d.querySelector('.slides h1')?.textContent.trim() === 'deckmd' && !built && !over) || `slides ${top} · with a source slide ${withSource} · source slides with <!-- fit --> ${built} · slides over the bottom ${over}`; } },
   { group: 'view', name: '?use=source on a deck that already lists the source plugin: loaded once (one source slide per slide, not two)', url: `${R}?src=examples/grid/talk.md&use=source`, slides: 11, check: d =>
       (d.querySelectorAll('.slides > section > section.source-slide').length === 12 && d.defaultView.DeckMD.loaded.filter(r => /plugins\/source\/source\.js$/.test(r.key)).length === 1)           // 11 slides: the front matter page makes 12
       || `source slides ${d.querySelectorAll('.slides > section > section.source-slide').length}` },

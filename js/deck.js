@@ -49,7 +49,7 @@
     sources: new WeakMap(),   // section → the Markdown it was made from (slide settings comment + content, without the notes). Only for slides made from Markdown
     slideInfo: new WeakMap(), // section → where the slide is in the Markdown file: { section, startLine, endLine, source, notes }. Only for slides made from Markdown
                               //   startLine..endLine: 1-based, inclusive, from the first to the last non-blank line of the slide (the front matter's lines count)
-                              //   source: those lines as written (settings comment, content and speaker notes). notes: the speaker notes alone
+                              //   source: those lines as written (settings comment, content and speaker notes). notes: the speaker notes alone. withoutNotes: source minus the notes
                               //   source and notes are worked out when you read them (getters), so a deck nobody asks pays for the two numbers only.
                               //   Don't spread the object ({ ...info }): that reads them all at once
                               //   (sources, above, is what was rendered: without the notes, and for a deck split by headings the text deckmd built from the headings)
@@ -405,6 +405,7 @@
         section, startLine: loc.startLine, endLine: loc.endLine,
         get source() { return fileLines().slice(this.startLine - 1, this.endLine).join('\n'); },
         get notes() { return (splitNotes(directives(this.source).rest)[1] || '').trim(); },
+        get withoutNotes() { const d = directives(this.source); return (this.source.slice(0, this.source.length - d.rest.length) + splitNotes(d.rest)[0]).trim(); },   // the lines as written, without the notes
       });
     }
     section.innerHTML = md.render(content);
@@ -910,7 +911,10 @@
   // data-fit slides (split by headings, or <!-- fit -->): if they overflow, shrink the text to fit the slide height (down to 60%)
   function fitSlides() {
     const H = Reveal.getConfig().height * 0.96;
-    for (const sec of document.querySelectorAll('.reveal .slides > section[data-fit]')) {
+    for (const sec of document.querySelectorAll('.reveal .slides section[data-fit]')) {      // also a slide inside a vertical stack (a plugin may put each slide in one)
+      const stack = sec.parentElement.matches('section') ? sec.parentElement : null;       // a hidden stack has no height: show it while measuring
+      const stackShown = stack?.style.display;
+      if (stack) stack.style.display = 'block';
       const shown = sec.style.display;
       sec.style.display = 'block';
       sec.style.fontSize = '';
@@ -921,6 +925,7 @@
         sec.style.fontSize = `${pct}%`;
       }
       sec.style.display = shown;
+      if (stack) stack.style.display = stackShown;
     }
     Reveal.layout();
   }

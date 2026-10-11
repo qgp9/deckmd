@@ -3,7 +3,7 @@
 //   <!-- source: off --> in a slide: no source slide for that one
 // A slide that already is a vertical stack (a <section> inside it, written as raw HTML) is left alone: reveal has only two levels.
 // The first slide that gets a source has one more page before it: the front matter (the deck's settings) as written (if that slide is off, the next one has it).
-// The source is the slide as written: its settings comment and content, without the speaker notes. A deck written in HTML has no Markdown, so nothing is added.
+// The source is the slide as written in the file: its settings comment and content, without the speaker notes (for a deck with no --- breaks, the lines of the file the slide was made from). A deck written in HTML has no Markdown, so nothing is added.
 (() => {
   const off = new URLSearchParams(location.search).get('source') === 'off';
   if (off) return;                                             // nothing to do (and no CSS to load) for this viewing
@@ -35,7 +35,7 @@
   DeckMD.beforeRender?.(() => { frontMatterPending = true; });   // the slides are built again on DeckMD.setSource: the first one gets the front matter again
   DeckMD.afterRender((sec) => {
     arm();
-    const text = DeckMD.sources.get(sec);
+    const text = DeckMD.slideInfo?.get(sec)?.withoutNotes ?? DeckMD.sources.get(sec);       // the lines as written; for a deck split by headings DeckMD.sources is text deckmd built (<!-- fit -->, a title)
     if (text == null || sec.dataset.source === 'off') return;
     if (sec.querySelector(':scope > section')) return;          // a vertical stack written inside the slide (raw HTML): reveal has two levels only, so leave it as it is
     const stack = document.createElement('section');          // a vertical stack: the slide, then its source below it
