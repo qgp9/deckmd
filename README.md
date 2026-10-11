@@ -26,6 +26,21 @@ Note:
 Speaker notes (S key)
 ```
 
+## Works with or without node
+
+Like reveal.js itself, deckmd needs no build step, no web server and no node to write or present. Markdown, themes and plugins are added on top of that without taking it away. Node is optional, and it makes things easier.
+
+- **The Markdown can be its own file.** `index.html` is a one-line launcher (`<script src="…/js/boot.js">`) and the slides live in `slides.md` next to it. You can still write slides inside `index.html` if you prefer one file. With node, you don't need `index.html` either: `npx deckmd serve my-deck.md` shows a bare Markdown file.
+- **No node, no web server.** Open `index.html` in a browser and pick the Markdown file (button or drag and drop); Chrome and Edge remember it and redraw when you save; other browsers keep it only until you reload. Presenting, speaker view, PDF printing and the E-key helper all work this way ([docs/usage.md](docs/usage.md#without-a-server)).
+- **Offline packing happens in the browser.** Press **E** → "Offline" and the page packs itself into one HTML file that opens without internet. No node, no build tool. (Opened as `file://`, the browser does not let the page read the files next to the Markdown, so images, CSS and scripts you reference by path are left out; from any web server they are included. Details: [docs/packing.md](docs/packing.md).)
+- **With node, it is the most convenient.** `npx deckmd init` sets up a project, `npx deckmd serve` serves and reloads it (and lists many decks), `npx deckmd add` adds a deck, and `npx deckmd talk.md` packs from the command line, the same file the E key makes.
+
+| | Needs | You get |
+|---|---|---|
+| Write and present | a browser | the deck itself (pick the Markdown file once per browser session if not Chrome/Edge) |
+| Offline packing | a browser | one HTML file (with `file://`, without files next to the deck) |
+| `npx deckmd …` | node 22+ | no `index.html`, serving, deck list, command-line packing |
+
 ## What it is
 
 deckmd is three things put together.
