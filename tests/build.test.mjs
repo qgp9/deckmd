@@ -1226,17 +1226,32 @@ test('site: the demo site lists the examples (the source plugin added, except th
   assert.equal(decks[0].src, 'examples/intro/talk.md', 'the home deck first');
 });
 
-test('README: the TL;DR block runs as written (here-doc, both packs) and the sizes it quotes are about right; the Korean one has the same commands', () => {
+test('README: the TL;DR block runs as written (here-doc, both packs) and the sizes it quotes are about right; the Korean one has the same commands', (t) => {
+  if (process.platform === 'win32') return t.skip('the block is a POSIX shell script (sh, a here-doc)');
   const block = file => /## TL;DR\s+```bash\n([\s\S]*?)```/.exec(fs.readFileSync(path.join(ROOT, file), 'utf8'))?.[1];
   const en = block('README.md'), ko = block('README.ko.md');
   assert.ok(en && ko, 'a TL;DR bash block in both READMEs');
-  const commands = text => text.split('\n').map(l => l.replace(/\s+#.*$/, '').trimEnd()).filter(Boolean);                // the comments after a command differ by language
-  assert.deepEqual(commands(ko), commands(en), 'the same commands in README.ko.md');
+  // The shell lines without the comment after them (the README aligns it after two or more spaces; it differs by language) and the here-doc body exactly as written:
+  // a # in the body is Markdown (a heading), not a comment
+  const commands = (text) => {
+    const out = [];
+    let end = null;
+    for (const line of text.split('\n')) {
+      if (end) { out.push(line); if (line === end) end = null; continue; }
+      const shell = line.replace(/\s{2,}#.*$/, '').trimEnd();
+      if (shell) out.push(shell);
+      end = /<<\s*'?(\w+)'?$/.exec(shell)?.[1] ?? null;
+    }
+    return out;
+  };
+  assert.deepEqual(commands(ko), commands(en), 'the same commands, and the same deck in the here-doc, in README.ko.md');
+  assert.ok(commands(en).includes('# Hello deckmd'), 'the here-doc body is kept, headings included');
   const dir = path.join(SANDBOX, 'tldr');
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   const r = spawnSync('sh', ['-c', en.replaceAll('npx deckmd', `node ${JSON.stringify(BUILD)}`)], { cwd: dir, encoding: 'utf8' });   // npx deckmd = this checkout
   assert.equal(r.status, 0, `${r.stderr}${r.stdout}`);
+  for (const f of ['mydeck.share.html', 'mydeck.offline.html']) assert.ok(fs.existsSync(path.join(dir, 'dist', f)), `dist/${f}: the block no longer makes it (update the README, or this test)`);
   const size = f => fs.statSync(path.join(dir, 'dist', f)).size;
   const share = size('mydeck.share.html'), offline = size('mydeck.offline.html');
   // the README says "about 100 KB" and "4 MB": when a bundle grows out of these ranges, update the numbers in README.md and README.ko.md
