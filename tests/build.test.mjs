@@ -1226,6 +1226,24 @@ test('site: the demo site lists the examples (the source plugin added, except th
   assert.equal(decks[0].src, 'examples/intro/talk.md', 'the home deck first');
 });
 
+test('README: the TL;DR block runs as written (here-doc, both packs) and the sizes it quotes are about right; the Korean one has the same commands', () => {
+  const block = file => /## TL;DR\s+```bash\n([\s\S]*?)```/.exec(fs.readFileSync(path.join(ROOT, file), 'utf8'))?.[1];
+  const en = block('README.md'), ko = block('README.ko.md');
+  assert.ok(en && ko, 'a TL;DR bash block in both READMEs');
+  const commands = text => text.split('\n').map(l => l.replace(/\s+#.*$/, '').trimEnd()).filter(Boolean);                // the comments after a command differ by language
+  assert.deepEqual(commands(ko), commands(en), 'the same commands in README.ko.md');
+  const dir = path.join(SANDBOX, 'tldr');
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  const r = spawnSync('sh', ['-c', en.replaceAll('npx deckmd', `node ${JSON.stringify(BUILD)}`)], { cwd: dir, encoding: 'utf8' });   // npx deckmd = this checkout
+  assert.equal(r.status, 0, `${r.stderr}${r.stdout}`);
+  const size = f => fs.statSync(path.join(dir, 'dist', f)).size;
+  const share = size('mydeck.share.html'), offline = size('mydeck.offline.html');
+  // the README says "about 100 KB" and "4 MB": when a bundle grows out of these ranges, update the numbers in README.md and README.ko.md
+  assert.ok(share > 50 * 1024 && share < 300 * 1024, `share bundle ${share} bytes: the README says about 100 KB`);
+  assert.ok(offline > 3 * 1048576 && offline < 6 * 1048576, `offline bundle ${offline} bytes: the README says 4 MB`);
+});
+
 test('unpack: only user files back to their places; packing again gives the same result', () => {
   // The real-world layout: deckmd/ inside a presentation repository (here a link pointing to this repository)
   const repo = path.join(SANDBOX, 'unpack-repo');
