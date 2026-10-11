@@ -1358,6 +1358,10 @@ test('register v2: npm/github descriptors become jsDelivr URLs; compat is requir
   assert.throws(() => lib({ npm: 'katex@0.18.7', files: ['a'], compat: '^1.0' }), /outside its own compat/);
   assert.throws(() => lib({ npm: 'katex', files: ['a'], compat: 'exact' }), /needs a version/);
   assert.throws(() => lib({ npm: 'katex@1.0.0', compat: 'exact' }), /files/);
+  for (const bad of ['', '../x.js', 'a/../../x.js', 'https://evil.example/x.js', '//evil.example/x.js', 5]) assert.throws(() => lib({ npm: 'katex@1.0.0', files: [bad], compat: 'exact' }), /files/, String(bad));
+  assert.equal(lib({ npm: 'x@1.2', files: ['a'], compat: '^1.2' }).version, '1.2', 'a short version is read as 1.2.0');
+  assert.doesNotThrow(() => lib({ github: 'u/r@v1', files: ['a'], compat: '^1' }));
+  assert.throws(() => lib({ npm: 'x@2', files: ['a'], compat: '^1.2' }), /outside its own compat/);
   assert.throws(() => lib({ files: ['a'], compat: 'exact' }), /npm:/);
   assert.throws(() => lib({ npm: 'katex@1.0.0', files: ['a'], compat: 'exact' }, 'css'), /cannot be a library name/);
   assert.deepEqual({ ...libOf('https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js') }, { key: 'npm:katex', version: '0.18.7' });

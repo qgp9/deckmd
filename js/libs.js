@@ -7,7 +7,7 @@
   // compat is required: it says how this plugin would accept another version of the library. It is Reserved: not active yet (nothing is negotiated, a second version of the same
   // library is an error); declaring it now keeps the plugin from having to be changed when negotiation arrives. Write 'exact' when unsure (and for a library with no semver), or 'none' / '' to say there is no policy.
   const RANGE = /^([\^~])(\d+)(?:\.(\d+))?(?:\.(\d+))?$/;
-  const parseVersion = v => { const m = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(v); return m && m.slice(1).map(Number); };
+  const parseVersion = v => { const m = /^v?(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:[-+].*)?$/.exec(v); return m && [m[1], m[2] ?? 0, m[3] ?? 0].map(Number); };   // 1.2 and v1 (a tag) count as 1.2.0 and 1.0.0
   const inRange = (version, range) => {                                       // ^1.2.3: same major (0.x: same minor, 0.0.x: same version) and not older; ~1.2.3: same minor and not older
     const v = parseVersion(version), [, op, a, b = 0, c = 0] = RANGE.exec(range), lo = [+a, +b, +c];
     if (!v) return false;
@@ -24,6 +24,7 @@
     if (i < 1 || i === spec.length - 1) throw at(`${kind}: '${spec}' needs a version (name@version)`);
     const pkg = spec.slice(0, i), version = spec.slice(i + 1);
     if (!Array.isArray(item.files) || !item.files.length) throw at(`files: ['dist/x.min.js', …] is required (paths inside the package)`);
+    for (const f of item.files) if (typeof f !== 'string' || !f.trim() || /^[a-z][a-z0-9+.-]*:|^\/\/|(^|\/)\.\.(\/|$)/i.test(f)) throw at(`files: '${f}' must be a path inside the package (no URL, no '..')`);
     if (typeof item.compat !== 'string') throw at(`compat is required: 'exact' (also for a library without semver versions), a range such as '^1.2', or 'none' (Reserved: not active yet; declaring it now avoids conflicts later)`);
     const compat = item.compat.trim();
     if (!['', 'none', 'exact'].includes(compat) && !RANGE.test(compat)) throw at(`compat: '${item.compat}' is not 'exact', 'none', '' or a range like '^1.2' / '~1.2.3'`);
