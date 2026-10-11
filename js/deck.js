@@ -44,6 +44,7 @@
     md: null,          // markdown-it instance (plugins may call md.use(...))
     fences: {},        // code block language → (code, attrs, token) => HTML
     hooks: [],         // (section, deck) => void — after a slide is attached to the DOM
+    beforeHooks: [],   // ({ update }) => void — before the slides are built: on load (update: false) and before every DeckMD.setSource render (update: true)
     frontMatter: '',   // the front matter as written (--- … ---), '' if there is none. Only for a deck made from Markdown
     sources: new WeakMap(),   // section → the Markdown it was made from (slide settings comment + content, without the notes). Only for slides made from Markdown
     slideInfo: new WeakMap(), // section → where the slide is in the Markdown file: { section, startLine, endLine, source, notes }. Only for slides made from Markdown
@@ -55,11 +56,34 @@
     slides() {                // the slides of the page in order: the slideInfo objects themselves (slides made from Markdown only; ?core cuts are gone)
       return [...document.querySelectorAll('.slides section')].map(s => this.slideInfo.get(s)).filter(Boolean);
     },
+    slideAt(line) {           // the slide at a line of the file: the one whose lines contain it; a line between slides (blank, ---, front matter) → the next slide, after the last → the last
+      const all = this.slides(), n = Number(line);
+      return all.find(i => n >= i.startLine && n <= i.endLine) || all.find(i => i.startLine > n) || all[all.length - 1] || null;
+    },
+    currentSlide() {          // the slideInfo of the slide being shown; on a slide a plugin added next to it (a source slide) → the slide it belongs to
+      const cur = window.Reveal?.getCurrentSlide?.();
+      if (!cur) return null;
+      const own = this.slideInfo.get(cur);
+      if (own) return own;
+      const stack = cur.parentElement?.closest('section');
+      return stack ? [...stack.children].map(c => this.slideInfo.get(c)).find(Boolean) || null : null;
+    },
+    // Show new Markdown without reloading (an editor's live preview): the slides are built again from the text and the slide being shown stays (or the one at opts.line).
+    // → { ok: true, slides } | { ok: false, error } | { ok: false, reload: true, error } when the front matter changed (theme, css, plugins, size… are read once at load:
+    // save the file and reload instead). On { ok: false } nothing has changed. Only for a deck made from Markdown, once it is shown. DeckMD.source becomes the new text
+    setSource(text, opts) { return setSource(text, opts); },
+    // The structure of a Markdown text without showing it: { ok: true, meta, frontMatter, split, slides: [{ startLine, endLine, attrs }] } (attrs: the settings
+    // comment of the slide, like { class: 'chapter', tier: 'core' }), or { ok: false, error } (front matter YAML). The same split a load or setSource makes
+    outline(text) { return outline(text); },
+
     runs: {},          // name → (section) => cleanup function | void — when a slide with the slide setting run: name is shown
     srcUrl,
     esc,
     registerFence(lang, fn) { this.fences[lang] = fn; },
     afterRender(fn) { this.hooks.push(fn); },
+    // For a plugin that keeps state between slides (a counter, "the first slide gets X"): reset it here. The slides are built again from nothing on every
+    // setSource, so afterRender runs again for every slide
+    beforeRender(fn) { this.beforeHooks.push(fn); },
     // Runs each time a slide is shown: <!-- run: name --> on the slide, DeckMD.registerRun('name', sec => { …; return () => cleanup on leaving }) in the plugin
     registerRun(name, fn) { this.runs[name] = fn; },
     // CSS next to the plugin itself (e.g. DeckMD.loadCSS('grid.css')). The deck waits until it has loaded before starting
@@ -389,6 +413,94 @@
     return section;
   }
 
+  // ── Showing a deck: parse → build the slides → post-process ────────────
+  // The whole parse of a Markdown file, shared by loading, DeckMD.setSource and DeckMD.outline: the front matter, how the body is split and the slides
+  // as { text, start, end, startLine, endLine } (start/end: body lines, startLine/endLine: file lines). Slides of nothing but blank lines are dropped.
+  // pre: the front matter already split off by the caller, if it has done that. Throws on a YAML error
+  function parseDeck(text, pre) {
+    const { meta, body, bodyLine } = pre || splitFrontmatter(text);
+    const split = params.get('split') || meta.split || CFG.split || (hasRules(body) ? 'rules' : 'headings');
+    const chunks = (split === 'headings' ? splitHeadings(body, +(params.get('lines') || meta.lines || CFG.lines)) : splitSlides(body)).filter(c => c.text.trim());
+    for (const c of chunks) if (c.start != null) { c.startLine = c.start + bodyLine - 1; c.endLine = c.end + bodyLine - 1; }
+    return { meta, frontMatter: text.slice(0, text.length - body.length).trim(), bodyLine, split, chunks };
+  }
+
+  function outline(text) {
+    try {
+      const p = parseDeck(String(text));
+      return { ok: true, meta: p.meta, frontMatter: p.frontMatter, split: p.split, slides: p.chunks.map(c => ({ startLine: c.startLine, endLine: c.endLine, attrs: directives(c.text).attrs })) };
+    } catch (e) { return { ok: false, error: `front matter (YAML): ${e.message}` }; }
+  }
+
+  const slideStyles = [];         // the <style>s moved out of slides (see finishSlides), so a new render can take the old ones away
+  let runner = null;              // startRuns()'s handle
+
+  const beginRender = (update) => {
+    for (const fn of DeckMD.beforeHooks) { try { fn({ update }); } catch (e) { console.error(e); } }
+    slideStyles.splice(0).forEach(st => st.remove());
+  };
+
+  // The slides of a parsed deck, appended to `deck` (the .slides element)
+  function buildBody(deck, parsed) {
+    for (const c of parsed.chunks) deck.appendChild(buildSection(c.text, DeckMD.md, c.startLine == null ? null : { startLine: c.startLine, endLine: c.endLine }));
+  }
+
+  // What follows building the slides, for decks from Markdown and decks written in HTML alike
+  function finishSlides(deck, meta) {
+    // ?core: only slides whose tier is core. Slides without a tier get defaultTier (default core). If no slides remain, keep them all and warn (instead of an empty deck)
+    if (params.has('core')) {
+      const dflt = String(params.get('defaultTier') || meta.defaultTier || CFG.defaultTier || 'core');
+      const all = [...deck.querySelectorAll('section')].filter(s => !s.querySelector(':scope > section'));   // slides (not the outer section of a vertical stack)
+      const cut = all.filter(s => (s.closest('section[data-tier]')?.dataset.tier || dflt) !== 'core');   // own tier, else the vertical stack's tier
+      if (cut.length === all.length) console.warn(`?core: no core slides, so all are shown (add tier: core, or defaultTier: core)`);
+      else {
+        const stacks = new Set(cut.map(s => s.parentElement).filter(p => p.tagName === 'SECTION'));
+        cut.forEach(s => s.remove());
+        stacks.forEach(p => { if (!p.querySelector(':scope > section')) p.remove(); });   // vertical stacks left empty
+      }
+    }
+    // <style> written inside a slide is moved after the theme (inside the slide it comes before the theme in document order and loses on equal selectors).
+    // Slides left with nothing after the move (slides that only had <style>) are removed
+    for (const sec of [...deck.querySelectorAll(':scope > section')]) {
+      const styles = [...sec.querySelectorAll('style')];
+      if (!styles.length) continue;
+      styles.forEach(st => { document.body.appendChild(st); slideStyles.push(st); });
+      if (!sec.children.length && !sec.textContent.trim() && !sec.getAttributeNames().length) sec.remove();
+    }
+    for (const sec of deck.querySelectorAll(':scope > section')) {
+      localize(sec);
+      for (const fn of DeckMD.hooks) fn(sec, DeckMD);
+    }
+  }
+
+  function setSource(text, opts = {}) {
+    if (pageSections || DeckMD.source == null) return { ok: false, error: 'Only a deck made from Markdown can be shown again from a text' };
+    if (!window.Reveal?.isReady?.()) return { ok: false, error: 'The deck is not shown yet' };
+    text = String(text);
+    let parsed;
+    try { parsed = parseDeck(text); } catch (e) { return { ok: false, error: `front matter (YAML): ${e.message}` }; }
+    if (parsed.frontMatter !== DeckMD.frontMatter) return { ok: false, reload: true, error: 'The front matter changed: it is read once at load, so save the file and reload' };
+    const deck = document.querySelector('.slides');
+    const before = Reveal.getIndices();
+    DeckMD.source = text;                        // before the slides are built: the lazy source of slideInfo reads it
+    beginRender(true);
+    deck.textContent = '';
+    buildBody(deck, parsed);
+    finishSlides(deck, parsed.meta);
+    Reveal.sync();
+    let to = null;
+    if (opts.line != null) { const at = DeckMD.slideAt(opts.line); if (at) to = Reveal.getIndices(at.section); }
+    if (!to) {                                   // stay where we were (the same position, if there are still that many slides)
+      const stacks = Reveal.getHorizontalSlides();
+      const h = Math.max(0, Math.min(before.h, stacks.length - 1));
+      to = { h, v: Math.max(0, Math.min(before.v || 0, (stacks[h]?.querySelectorAll(':scope > section').length || 1) - 1)) };
+    }
+    Reveal.slide(to.h, to.v || 0);
+    fitSlides();
+    runner?.reset();
+    return { ok: true, slides: DeckMD.slides().length };
+  }
+
   // ── Default post-processing ─────────────────────────────────────
   // ::: fragments → the items right below (li, or children) one by one
   DeckMD.afterRender((sec) => {
@@ -639,38 +751,9 @@
     try { await Promise.all(pending); }                                  // CSS and the libraries plugins asked for
     catch (e) { fail(e.message); return; }
     const deck = document.querySelector('.slides');
-    if (!pageSections) {
-      const split = params.get('split') || meta.split || CFG.split || (hasRules(body) ? 'rules' : 'headings');
-      const sources = split === 'headings' ? splitHeadings(body, +(params.get('lines') || meta.lines || CFG.lines)) : splitSlides(body);
-      for (const c of sources) {
-        if (!c.text.trim()) continue;
-        deck.appendChild(buildSection(c.text, DeckMD.md, c.start == null ? null : { startLine: c.start + bodyLine - 1, endLine: c.end + bodyLine - 1 }));
-      }
-    }
-    // ?core: only slides whose tier is core. Slides without a tier get defaultTier (default core). If no slides remain, keep them all and warn (instead of an empty deck)
-    if (params.has('core')) {
-      const dflt = String(params.get('defaultTier') || meta.defaultTier || CFG.defaultTier || 'core');
-      const all = [...deck.querySelectorAll('section')].filter(s => !s.querySelector(':scope > section'));   // slides (not the outer section of a vertical stack)
-      const cut = all.filter(s => (s.closest('section[data-tier]')?.dataset.tier || dflt) !== 'core');   // own tier, else the vertical stack's tier
-      if (cut.length === all.length) console.warn(`?core: no core slides, so all are shown (add tier: core, or defaultTier: core)`);
-      else {
-        const stacks = new Set(cut.map(s => s.parentElement).filter(p => p.tagName === 'SECTION'));
-        cut.forEach(s => s.remove());
-        stacks.forEach(p => { if (!p.querySelector(':scope > section')) p.remove(); });   // vertical stacks left empty
-      }
-    }
-    // <style> written inside a slide is moved after the theme (inside the slide it comes before the theme in document order and loses on equal selectors).
-    // Slides left with nothing after the move (slides that only had <style>) are removed
-    for (const sec of [...deck.querySelectorAll(':scope > section')]) {
-      const styles = [...sec.querySelectorAll('style')];
-      if (!styles.length) continue;
-      styles.forEach(st => document.body.appendChild(st));
-      if (!sec.children.length && !sec.textContent.trim() && !sec.getAttributeNames().length) sec.remove();
-    }
-    for (const sec of deck.querySelectorAll(':scope > section')) {
-      localize(sec);
-      for (const fn of DeckMD.hooks) fn(sec, DeckMD);
-    }
+    beginRender(false);
+    if (!pageSections) buildBody(deck, parseDeck(DeckMD.source, { meta, body, bodyLine }));
+    finishSlides(deck, meta);
 
     const [width, height] = String(meta.size || CFG.size).split('x').map(Number);
     Reveal.initialize({
@@ -688,7 +771,7 @@
       ...(meta.reveal || {}),
     });
     Reveal.on('ready', fitSlides);
-    startRuns();
+    runner = startRuns();
     document.fonts?.addEventListener('loadingdone', () => Reveal.isReady() && fitSlides());   // CDN fonts can arrive late (font-display: swap)
   }
 
@@ -710,6 +793,7 @@
       else enter(Reveal.getCurrentSlide());
     });
     Reveal.on('slidechanged', e => enter(e.currentSlide));
+    return { reset: () => enter(Reveal.getCurrentSlide()) };   // after the slides were built again: leave the old slide's run, enter the one now shown
   }
 
   // ── Deck list (?deck-list, or home: 'list' in deck.config.js) ─────────────

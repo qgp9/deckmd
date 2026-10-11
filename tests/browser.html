@@ -56,6 +56,92 @@ function slidesCheck(expected) {
   };
 }
 
+// DeckMD.setSource / outline / slideAt / currentSlide on tests/fixtures/lines/talk.md (slides at lines 5-10, 14-24, 29-29)
+const ranges = (list) => JSON.stringify(list.map(s => [s.startLine, s.endLine]));
+function setSourceCheck(d) {
+  const DM = d.defaultView.DeckMD, t0 = DM.source, lines0 = t0.split('\n');
+  // the shown slides must agree with what outline() says about the same text
+  const agree = (what) => { const got = ranges(DM.slides()), want = ranges(DM.outline(DM.source).slides); return got === want || `${what}: shown ${got}, outline ${want}`; };
+  const expect = (what, want) => ranges(DM.slides()) === JSON.stringify(want) || `${what}: ${ranges(DM.slides())}`;
+  let r = DM.setSource(t0.replace('## Two', '## Two edited'));
+  if (!r.ok || r.slides !== 3 || !DM.slides()[1].source.includes('## Two edited') || DM.source === t0) return `edit: ${JSON.stringify(r)}`;
+  let a = agree('edit'); if (a !== true) return a;
+  r = DM.setSource(t0.replace('---\n\n## Two', '---\n\n## Inserted\n\n---\n\n## Two'));               // a slide inserted before Two
+  if (!r.ok || r.slides !== 4) return `insert: ${JSON.stringify(r)}`;
+  if ((a = agree('insert')) !== true || (a = expect('insert', [[5, 10], [14, 14], [18, 28], [33, 33]])) !== true) return a;
+  if (DM.slides()[2].source.split('\n')[0] !== '## Two' || DM.slides()[2].notes !== 'say two') return 'insert: the moved slide lost its source or notes';
+  const cut = lines0.slice(0); cut.splice(13, 11);                                                    // Two (lines 14-24) deleted
+  r = DM.setSource(cut.join('\n'));
+  if (!r.ok || r.slides !== 2) return `delete: ${JSON.stringify(r)}`;
+  if ((a = agree('delete')) !== true || (a = expect('delete', [[5, 10], [18, 18]])) !== true) return a;
+  r = DM.setSource(t0);                                                                               // and back
+  if (!r.ok || r.slides !== 3 || DM.source !== t0 || (a = expect('back', [[5, 10], [14, 24], [29, 29]])) !== true) return `back: ${JSON.stringify(r)}`;
+  return true;
+}
+function setSourcePositionCheck(d) {
+  const DM = d.defaultView.DeckMD, R = d.defaultView.Reveal, t0 = DM.source;
+  R.slide(1);
+  if (R.getIndices().h !== 1) return 'could not move to slide 2';
+  if (!DM.setSource(`${t0}\n`).ok || R.getIndices().h !== 1) return `the slide shown moved: ${R.getIndices().h}`;
+  if (!DM.setSource(t0, { line: 29 }).ok || R.getIndices().h !== 2) return `line 29 should show slide 3: ${R.getIndices().h}`;
+  if (!DM.setSource(t0, { line: 7 }).ok || R.getIndices().h !== 0) return `line 7 should show slide 1: ${R.getIndices().h}`;
+  R.slide(2);
+  if (!DM.setSource(t0.replace('## Three', '')).ok || R.getIndices().h !== 1) return `with a slide fewer, the last one should stay: ${R.getIndices().h}`;
+  return true;
+}
+function setSourceRefuseCheck(d) {
+  const DM = d.defaultView.DeckMD, t0 = DM.source, n = DM.slides().length;
+  let r = DM.setSource(t0.replace('title: lines test', 'title: changed'));
+  if (r.ok || !r.reload || DM.source !== t0 || DM.slides().length !== n) return `front matter change: ${JSON.stringify(r)}`;
+  r = DM.setSource('---\ntitle: [\n---\n\n## x\n');
+  if (r.ok || r.reload || !/YAML/.test(r.error) || DM.source !== t0 || DM.slides().length !== n) return `YAML error: ${JSON.stringify(r)}`;
+  const o = DM.outline('---\ntitle: [\n---\n\n## x\n');
+  if (o.ok || !/YAML/.test(o.error)) return `outline of a YAML error: ${JSON.stringify(o)}`;
+  if (DM.slides().length !== n) return 'the deck changed';
+  return true;
+}
+function outlineCheck(d) {
+  const DM = d.defaultView.DeckMD, o = DM.outline(DM.source);
+  if (!o.ok || o.meta.title !== 'lines test' || o.split !== 'rules' || !o.frontMatter.startsWith('---') || !o.frontMatter.includes('title: lines test')) return `meta: ${JSON.stringify(o).slice(0, 200)}`;
+  if (ranges(o.slides) !== '[[5,10],[14,24],[29,29]]') return `ranges: ${ranges(o.slides)}`;
+  if (o.slides[0].attrs.class !== 'center' || Object.keys(o.slides[1].attrs).length) return `attrs: ${JSON.stringify(o.slides.map(x => x.attrs))}`;
+  return true;
+}
+function slideAtCheck(d) {
+  const DM = d.defaultView.DeckMD;                                       // slides at 5-10, 14-24, 29-29
+  const want = { 1: 5, 3: 5, 5: 5, 7: 5, 10: 5, 11: 14, 12: 14, 13: 14, 14: 14, 24: 14, 25: 29, 28: 29, 29: 29, 99: 29 };
+  for (const [line, start] of Object.entries(want)) if (DM.slideAt(Number(line))?.startLine !== start) return `line ${line} → ${DM.slideAt(Number(line))?.startLine}, want ${start}`;
+  return true;
+}
+// With the source plugin: its slides and its front matter page survive a render, and currentSlide() maps a source slide back to its slide
+function sourcePluginRenderCheck(d) {
+  const DM = d.defaultView.DeckMD, R = d.defaultView.Reveal;
+  const state = () => `${d.querySelectorAll('.source-slide').length}/${d.querySelectorAll('.source-slide.front-matter').length}/${DM.slides().length}`;
+  const before = state();
+  if (!DM.setSource(`${DM.source}\n`).ok) return 'setSource failed';
+  if (state() !== before) return `source slides: ${before} → ${state()}`;
+  if (!DM.setSource(DM.source).ok || state() !== before) return `source slides after a second render: ${state()}`;
+  R.slide(0, 1);
+  if (!R.getCurrentSlide().classList.contains('source-slide')) return 'could not move to a source slide';
+  if (DM.currentSlide() !== DM.slides()[0]) return `currentSlide on a source slide: ${DM.currentSlide()?.startLine}`;
+  R.slide(1, 0);
+  if (DM.currentSlide() !== DM.slides()[1]) return 'currentSlide on a slide';
+  return true;
+}
+// beforeRender / afterRender are called on every render; the <style>s moved out of slides don't pile up
+function renderHooksCheck(d) {
+  const DM = d.defaultView.DeckMD, log = d.defaultView.__renderLog;
+  const afters = () => log.filter(x => x.startsWith('after:')).length;
+  if (log[0] !== 'before:false' || afters() !== 3) return `load: ${log.join()}`;
+  const styles = () => [...d.querySelectorAll('body > style')].filter(x => /render-test/.test(x.textContent)).length;
+  if (styles() !== 1) return `the slide's <style> should be moved to the body once: ${styles()}`;
+  for (let i = 0; i < 3; i++) if (!DM.setSource(`${DM.source}\n`).ok) return `setSource ${i + 1} failed`;
+  if (log.filter(x => x.startsWith('before')).join() !== 'before:false,before:true,before:true,before:true') return `beforeRender: ${log.join()}`;
+  if (afters() !== 12) return `afterRender should run for every slide on every render: ${afters()}`;
+  if (styles() !== 1) return `moved <style>s piled up: ${styles()}`;
+  return true;
+}
+
 // Deck list: view and &core links for each example deck. Checks for the decks that should be there, not a count (so adding examples doesn't break it)
 const LIST_DECKS = ['grid/talk.md', 'interactive/talk.md', 'math/talk.md', 'readme/rewrite.md', 'syntax/talk.md'];
 const mathCheck = d => {                                       // the math fixture: 3 formulas drawn (inline + block on slide 1, \(…\) on slide 3), 1 broken one in place
@@ -96,6 +182,15 @@ const CASES = [
   { group: 'slide info', name: 'split by headings, lines=2: continued slides start at their first block', url: `${R}?src=tests/fixtures/lines/readme.md&lines=2`, slides: 7, check: slidesCheck([[1, 1], [3, 3], [5, 8], [10, 12], [14, 16], [18, 18], [20, 20]]) },
   { group: 'slide info', name: 'with the source plugin: only the real slides, not the source slides', url: `${R}?src=tests/fixtures/source/talk.md`, slides: 3, check: d => slidesCheck([[6, 11], [15, 19], [23, 25]])(d) === true && !d.defaultView.DeckMD.slides().some(s => s.section.classList.contains('source-slide')) || 'source slides are listed' },
   { group: 'slide info', name: '?core: a cut slide is gone from the list', url: `${R}?src=tests/fixtures/source/talk.md&core&defaultTier=none`, slides: 1, check: slidesCheck([[23, 25]]) },
+  // DeckMD.setSource / outline / slideAt / currentSlide / beforeRender: what an editor needs
+  { group: 'set source', name: 'setSource: edit, insert and delete a slide, and back (the shown slides agree with outline(), notes and source move along)', url: `${R}?src=tests/fixtures/lines/talk.md`, slides: 3, check: setSourceCheck },
+  { group: 'set source', name: 'setSource keeps the slide shown, or shows the one at opts.line; with a slide fewer it stays on the last', url: `${R}?src=tests/fixtures/lines/talk.md`, slides: 3, check: setSourcePositionCheck },
+  { group: 'set source', name: 'setSource refuses a changed front matter ({ reload: true }) and a YAML error, and changes nothing', url: `${R}?src=tests/fixtures/lines/talk.md`, slides: 3, check: setSourceRefuseCheck },
+  { group: 'set source', name: 'outline(text): the slide ranges and settings of a text without showing it', url: `${R}?src=tests/fixtures/lines/talk.md`, slides: 3, check: outlineCheck },
+  { group: 'set source', name: 'slideAt(line): the slide containing the line, else the next one (the last after the end)', url: `${R}?src=tests/fixtures/lines/talk.md`, slides: 3, check: slideAtCheck },
+  { group: 'set source', name: 'with the source plugin: source slides and the front matter page survive a render; currentSlide() on a source slide', url: `${R}?src=tests/fixtures/source/talk.md`, slides: 3, check: sourcePluginRenderCheck },
+  { group: 'set source', name: '?core: a cut slide stays cut after setSource', url: `${R}?src=tests/fixtures/source/talk.md&core&defaultTier=none`, slides: 1, check: d => d.defaultView.DeckMD.setSource(d.defaultView.DeckMD.source).ok && d.defaultView.DeckMD.slides().length === 1 && ranges(d.defaultView.DeckMD.slides()) === '[[23,25]]' || '?core after setSource' },
+  { group: 'set source', name: 'beforeRender/afterRender on every render, and moved <style>s do not pile up', url: `${R}?src=tests/fixtures/render/talk.md`, slides: 3, check: renderHooksCheck },
   { group: 'source', name: 'plugins: [source] → source slides under each slide, the front matter first under slide 1 (not under <!-- source: off -->; notes stay out, tags stay text, highlighted)', url: `${R}?src=tests/fixtures/source/talk.md`, slides: 3, notes: 1, check: d => {
       const src = [...d.querySelectorAll('.slides > section > section.source-slide code')].map(c => c.textContent);
       return (src.length === 3 && src[0].includes('title: source plugin test') && src[1].includes('# One') && src[1].includes('<b>tags</b>') && !src[1].includes('speaker note') && src[2].includes('tier: core') && !d.querySelector('.source-slide b') && d.querySelectorAll('.slides .source-slide code.hljs').length === 3)
