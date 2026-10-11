@@ -20,7 +20,7 @@
     const at = (m) => new Error(`${who}: library '${name}': ${m}`);
     const kind = Object.keys(SOURCES).find(k => item[k] != null);
     if (!kind) throw at(`needs npm: 'name@version' or github: 'user/repo@version'`);
-    const spec = String(item[kind]), i = spec.lastIndexOf('@');
+    const spec = String(item[kind]).trim(), i = spec.lastIndexOf('@');
     if (i < 1 || i === spec.length - 1) throw at(`${kind}: '${spec}' needs a version (name@version)`);
     const pkg = spec.slice(0, i), version = spec.slice(i + 1);
     if (!Array.isArray(item.files) || !item.files.length) throw at(`files: ['dist/x.min.js', …] is required (paths inside the package)`);
@@ -30,7 +30,7 @@
     if (!['', 'none', 'exact'].includes(compat) && !RANGE.test(compat)) throw at(`compat: '${item.compat}' is not 'exact', 'none', '' or a range like '^1.2' / '~1.2.3'`);
     if (RANGE.test(compat) && !inRange(version, compat)) throw at(`version ${version} is outside its own compat '${compat}' (a range and a pinned version that disagree)`);
     const base = `https://cdn.jsdelivr.net/${SOURCES[kind]}/${pkg}@${version}/`;
-    return { name, key: `${kind}:${pkg}`, version, compat, urls: item.files.map(f => base + String(f).replace(/^\.?\//, '')), load: item.load ?? defaultLoad };
+    return { name, key: `${kind}:${pkg}`, version, compat, urls: item.files.map(f => base + f.trim().replace(/^\.?\//, '')), load: item.load ?? defaultLoad };
   }
   function libSpec(spec = {}, who = 'register') {
     const load = spec.load === 'manual' ? 'manual' : 'auto', items = [];

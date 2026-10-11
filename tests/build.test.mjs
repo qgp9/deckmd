@@ -1361,6 +1361,7 @@ test('register v2: npm/github descriptors become jsDelivr URLs; compat is requir
   for (const bad of ['', '../x.js', 'a/../../x.js', 'https://evil.example/x.js', '//evil.example/x.js', 5]) assert.throws(() => lib({ npm: 'katex@1.0.0', files: [bad], compat: 'exact' }), /files/, String(bad));
   assert.equal(lib({ npm: 'x@1.2', files: ['a'], compat: '^1.2' }).version, '1.2', 'a short version is read as 1.2.0');
   assert.doesNotThrow(() => lib({ github: 'u/r@v1', files: ['a'], compat: '^1' }));
+  assert.deepEqual([...lib({ npm: ' x@1.0.0 ', files: [' dist/x.js '], compat: 'exact' }).urls], ['https://cdn.jsdelivr.net/npm/x@1.0.0/dist/x.js'], 'spaces around a name or a file are not part of the URL');
   assert.throws(() => lib({ npm: 'x@2', files: ['a'], compat: '^1.2' }), /outside its own compat/);
   assert.throws(() => lib({ files: ['a'], compat: 'exact' }), /npm:/);
   assert.throws(() => lib({ npm: 'katex@1.0.0', files: ['a'], compat: 'exact' }, 'css'), /cannot be a library name/);
