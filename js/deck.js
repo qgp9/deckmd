@@ -405,7 +405,7 @@
         section, startLine: loc.startLine, endLine: loc.endLine,
         get source() { return fileLines().slice(this.startLine - 1, this.endLine).join('\n'); },
         get notes() { return (splitNotes(directives(this.source).rest)[1] || '').trim(); },
-        get withoutNotes() { const d = directives(this.source); return (this.source.slice(0, this.source.length - d.rest.length) + splitNotes(d.rest)[0]).trim(); },   // the lines as written, without the notes
+        get withoutNotes() { const src = this.source, d = directives(src); return (src.slice(0, src.length - d.rest.length) + splitNotes(d.rest)[0]).trim(); },   // the lines as written, without the notes
       });
     }
     section.innerHTML = md.render(content);
@@ -913,19 +913,21 @@
     const H = Reveal.getConfig().height * 0.96;
     for (const sec of document.querySelectorAll('.reveal .slides section[data-fit]')) {      // also a slide inside a vertical stack (a plugin may put each slide in one)
       const stack = sec.parentElement.matches('section') ? sec.parentElement : null;       // a hidden stack has no height: show it while measuring
-      const stackShown = stack?.style.display;
-      if (stack) stack.style.display = 'block';
-      const shown = sec.style.display;
-      sec.style.display = 'block';
-      sec.style.fontSize = '';
-      for (let k = 0, pct = 100; k < 4; k++) {
-        const h = sec.scrollHeight;
-        if (h <= H || pct <= 60) break;
-        pct = Math.max(60, Math.floor(pct * (H / h) * 0.98));
-        sec.style.fontSize = `${pct}%`;
+      const stackShown = stack?.style.display, shown = sec.style.display;
+      try {
+        if (stack) stack.style.display = 'block';
+        sec.style.display = 'block';
+        sec.style.fontSize = '';
+        for (let k = 0, pct = 100; k < 4; k++) {
+          const h = sec.scrollHeight;
+          if (h <= H || pct <= 60) break;
+          pct = Math.max(60, Math.floor(pct * (H / h) * 0.98));
+          sec.style.fontSize = `${pct}%`;
+        }
+      } finally {                                                                              // whatever happens, the slides are hidden again as reveal.js had them
+        sec.style.display = shown;
+        if (stack) stack.style.display = stackShown;
       }
-      sec.style.display = shown;
-      if (stack) stack.style.display = stackShown;
     }
     Reveal.layout();
   }
