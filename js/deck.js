@@ -743,7 +743,10 @@
     const items = (await Promise.all(entries.map(async d => (d === 'auto' ? scanDecks() : [typeof d === 'string' ? { src: d } : { ...d }])))).flat();
     const ul = box.querySelector('ul');
     const page = location.pathname.split('/').pop();                  // '' means the current folder (= index.html)
-    const href = (it, extra = '') => `${page}?src=${encodeURIComponent(it.src)}${it.plugins?.length ? `&use=${encodeURIComponent(list(it.plugins).join(','))}` : ''}${extra}`;   // plugins: this deck is opened with them added
+    const href = (it, extra = '') => {
+      const use = list(it.plugins).filter(Boolean);                                  // plugins: a name or a list of names: this deck is opened with them added
+      return `${page}?src=${encodeURIComponent(it.src)}${use.length ? `&use=${encodeURIComponent(use.join(','))}` : ''}${extra}`;
+    };
     for (const it of items) {
       const li = document.createElement('li');
       li.innerHTML = `<a class="t" href="${href(it)}">${esc(it.title || it.src)}</a>`

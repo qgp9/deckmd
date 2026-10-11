@@ -77,6 +77,9 @@ const CASES = [
   { group: 'view', name: 'README.md is a deck: no slide breaks, split by headings; ?use=source adds a source slide under each slide', url: `${R}?src=README.md&use=source`, check: d => {
       const top = d.querySelectorAll('.slides > section').length, withSource = d.querySelectorAll('.slides > section > section.source-slide').length;
       return (top >= 10 && withSource === top && d.querySelector('.slides h1')?.textContent.trim() === 'deckmd') || `slides ${top} · with a source slide ${withSource}`; } },
+  { group: 'view', name: '?use=source on a deck that already lists the source plugin: loaded once (one source slide per slide, not two)', url: `${R}?src=examples/grid/talk.md&use=source`, slides: 11, check: d =>
+      (d.querySelectorAll('.slides > section > section.source-slide').length === 12 && d.defaultView.DeckMD.loaded.filter(r => /plugins\/source\/source\.js$/.test(r.key)).length === 1)           // 11 slides: the front matter page makes 12
+      || `source slides ${d.querySelectorAll('.slides > section > section.source-slide').length}` },
   { group: 'view', name: '?use= takes only the names of built-in plugins: a path, a URL or a dotted name is ignored', url: `${R}?src=tests/fixtures/headings/talk.md&use=../x,https://example.invalid/p.js,/etc/p,a.b,Source`, slides: 3, check: d =>
       (!d.defaultView.DeckMD.loaded.some(r => /example\.invalid|\/x\b|etc\/p|a\.b|plugins\/source/.test(r.key)) && !d.defaultView.performance.getEntriesByType('resource').some(e => /example\.invalid/.test(e.name)))
       || `loaded ${d.defaultView.DeckMD.loaded.map(r => r.key).join(', ')}` },
