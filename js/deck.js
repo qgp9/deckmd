@@ -72,14 +72,21 @@
     // goes at the very top of the plugin file, with the URLs written out in full: tools/localize.mjs runs the file to learn what to download.
     // 'auto' (default): deck.js loads them in this order before the slides are built (CSS and JS, once per URL). 'manual': only declared; the plugin calls DeckMD.load(url) when it wants them.
     // Either way the files are recorded in DeckMD.loaded, so packing embeds them (offline) or keeps the CDN URL (share), and data-local uses vendor/.
+    // It returns a handle for DeckMD.load: { libs, css, js } (the URLs). const katex = DeckMD.register({ libs: [css, js], load: 'manual' }); … DeckMD.load(katex) (all) or DeckMD.load(katex.js) (some)
     register(spec = {}) {
       const libs = list(spec.libs);
-      if (spec.load !== 'manual') libs.forEach(url => this.load(url));
+      const handle = { libs, css: libs.filter(isCssUrl), js: libs.filter(u => !isCssUrl(u)) };
+      if (spec.load !== 'manual') this.load(handle);
+      return handle;
     },
-    load(url) {
+    // load(url | [url, …] | handle from register). One after the other, each URL once. Returns a promise
+    load(what) {
+      if (Array.isArray(what)) return Promise.all(what.map(u => this.load(u)));
+      if (what && typeof what === 'object') return this.load(what.libs);
+      const url = what;
       if (!libCache.has(url)) {
         const href = window.DeckBoot?.useLocal && /^https?:/.test(url) ? new URL(window.DeckBoot.localPath(url.split(/[?#]/)[0]), window.DeckBoot.root).href : url;
-        const run = () => (/\.css(?:[?#]|$)/i.test(url) ? loadCSS(href, url) : loadScript(href, url));
+        const run = () => (isCssUrl(url) ? loadCSS(href, url) : loadScript(href, url));
         libCache.set(url, (libChain = libChain.then(run, run)));              // one after the other: a plugin library may need the one before it
         pending.push(libCache.get(url));
       }
@@ -94,6 +101,7 @@
   };
   const pending = [];
   const libCache = new Map();
+  const isCssUrl = u => /\.css(?:[?#]|$)/i.test(u);
   let libChain = Promise.resolve();
   let pluginKey = '';
 

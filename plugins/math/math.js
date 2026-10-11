@@ -1,4 +1,4 @@
-DeckMD.register({ libs: ['https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.css', 'https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js'], load: 'manual' });
+const katex = DeckMD.register({ libs: ['https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.css', 'https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js'], load: 'manual' });
 // math plugin — TeX in Markdown, drawn with KaTeX. plugins: [math] in the front matter. Docs: docs/plugins.md
 //   $x^2$  \(x^2\)   in a sentence          $$ … $$   \[ … \]   as a block (on lines of its own) or inside a sentence
 //   math: { output: htmlAndMathml (default) | html | mathml, macros: { '\RR': '\mathbb{R}' } }   in the front matter
@@ -6,8 +6,6 @@ DeckMD.register({ libs: ['https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.m
 // The two rules run before the Markdown ones for _ * \ ` so a formula reaches KaTeX as it was written. Code spans and code blocks are never touched.
 (() => {
   const { esc } = DeckMD;
-  const KATEX_CSS = 'https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.css';
-  const KATEX_JS = 'https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js';
   window.DeckNotices?.list.push({ name: 'KaTeX', spdx: 'MIT', match: /\/npm\/katex@/ });
   DeckMD.loadCSS('math.css');
 
@@ -82,8 +80,8 @@ DeckMD.register({ libs: ['https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.m
     opts = deck.config?.math || {};
     output = ['html', 'mathml', 'htmlAndMathml'].includes(opts.output) ? opts.output : 'htmlAndMathml';
     if (/\$|\\\(|\\\[/.test(deck.source || '')) {
-      if (output !== 'mathml') deck.load(KATEX_CSS);
-      deck.load(KATEX_JS);
+      if (output !== 'mathml') deck.load(katex.css);
+      deck.load(katex.js);
     }
     const md = deck.md;
     md.inline.ruler.before('escape', 'math_inline', inline);

@@ -73,6 +73,9 @@ const CASES = [
   { group: 'source', name: '?core: a cut slide takes its source with it', url: `${R}?src=tests/fixtures/source/talk.md&core&defaultTier=none`, slides: 1, check: d => d.querySelectorAll('.slides .source-slide').length === 2 || 'source slides after ?core (front matter + source of the one left)' },
   { group: 'view', name: 'example math', url: `${R}?src=examples/math/talk.md`, slides: 5, check: d => (d.querySelectorAll('.slides .katex').length === 6 && d.querySelectorAll('.slides .math-error').length === 1) || 'formulas / errors in the math example' },
   { group: 'math', name: 'plugins: [math] → formulas are drawn; money, escapes and code stay text; a mistake stays in place', url: `${R}?src=tests/fixtures/math/talk.md`, slides: 3, check: mathCheck },
+  { group: 'math', name: 'math: { output: mathml } → MathML in the page, and the KaTeX CSS (with its fonts) is not loaded at all', url: `${R}?src=tests/fixtures/math-mathml/talk.md`, slides: 1, check: d =>
+      (d.querySelectorAll('.slides .katex math').length === 2 && !d.defaultView.DeckMD.loaded.some(r => /katex\.min\.css/.test(r.key)) && d.defaultView.DeckMD.loaded.some(r => /katex\.min\.js/.test(r.key)))
+      || `math elements ${d.querySelectorAll('.slides .katex math').length} · loaded ${d.defaultView.DeckMD.loaded.map(r => r.key.split('/').pop()).join(',')}` },
   { group: 'bundled', name: 'math offline (KaTeX and its fonts inside)', url: `${OUT}math.offline.html`, slides: 3, ext: 0, built: true, check: mathCheck },
   { group: 'bundled', name: 'math share (KaTeX from the CDN)', url: `${OUT}math.share.html`, slides: 3, built: true, check: mathCheck },
   { group: 'errors', name: 'front matter YAML error', url: `${R}?src=tests/fixtures/bad-yaml/talk.md`, text: ["Can't open the deck", 'front matter (YAML)'] },

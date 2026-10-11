@@ -1119,7 +1119,7 @@ async function mathMarkdown(config = {}) {
   win.katex = run(await fromVendorOrNet('https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js'));
   const md = markdownit({ html: true });
   const loads = [], queue = [];
-  const DeckMD = { esc: x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), register() {}, loadCSS() {}, load: u => loads.push(u),
+  const DeckMD = { esc: x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])), register: ({ libs }) => ({ libs, css: libs.filter(u => /\.css/.test(u)), js: libs.filter(u => !/\.css/.test(u)) }), loadCSS() {}, load: u => loads.push(u),
     init: fn => queue.push(fn), md, config, source: config.source ?? '$x$' };
   new Function('DeckMD', 'window', fs.readFileSync(path.join(ROOT, 'plugins/math/math.js'), 'utf8'))(DeckMD, win);
   assert.equal(md.renderer.rules.math_inline, undefined, 'nothing is set up before DeckMD.init runs');

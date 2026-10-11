@@ -19,7 +19,7 @@ export function pluginLibs(root, notices) {
     const file = path.join(dir, name, `${name}.js`);
     if (!fs.existsSync(file)) continue;
     const libs = [];
-    const DeckMD = new Proxy({ register: (spec = {}) => libs.push(...[].concat(spec.libs ?? [])) }, { get: (t, k) => (k in t ? t[k] : inert()) });
+    const DeckMD = new Proxy({ register: (spec = {}) => { const l = [].concat(spec.libs ?? []); libs.push(...l); return { libs: l, css: l.filter(u => /\.css/.test(u)), js: l.filter(u => !/\.css/.test(u)) }; } }, { get: (t, k) => (k in t ? t[k] : inert()) });
     const window = {};
     const ctx = vm.createContext({ DeckMD, DeckNotices: notices, window, document: inert(), location: { search: '', href: 'http://localhost/' }, Reveal: inert(), console });
     window.DeckMD = DeckMD;
