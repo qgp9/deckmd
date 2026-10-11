@@ -32,6 +32,7 @@
   };
 
   let frontMatterPending = true;                                 // the first slide that gets a source also gets the deck's front matter (the --- … --- at the top of the file) first
+  DeckMD.beforeRender?.(() => { frontMatterPending = true; });   // the slides are built again on DeckMD.setSource: the first one gets the front matter again
   DeckMD.afterRender((sec) => {
     arm();
     const text = DeckMD.sources.get(sec);
