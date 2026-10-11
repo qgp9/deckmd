@@ -129,6 +129,7 @@ If you open `index.html` directly in the browser, the browser blocks a `file://`
 | `?draft` | Show `<!-- @@ … -->` review notes as yellow sticky notes |
 | `?mode=dark\|light\|auto` | Light/dark mode (when the theme supports it) |
 | `?split=headings&lines=10` | How to split by headings a Markdown file with no slide breaks |
+| `?use=source,math` | Add built-in plugins to this viewing (the names of plugins that come with deckmd; a path or a URL is ignored). The deck list uses it for the decks that say `plugins: […]`. Not `?plugins=`: reveal.js takes every query parameter as one of its own settings, and its `plugins` is a list |
 | `?pick` | Pick a file even when opened through a server |
 | `?print-pdf` | Print layout (⌘/Ctrl+P → Save as PDF). With `&showNotes=separate-page`, notes go on their own pages |
 
@@ -153,6 +154,7 @@ window.DeckConfig = {
 };
 ```
 
+- `decks` is `'auto'` (the folders of `scan`) or a list of paths and `{ src, title, core, plugins }`, and the string `'auto'` in the list stands for the scan: `decks: ['auto', { src: 'README.md', title: 'README', core: false, plugins: ['source'] }]`. `title` is the name shown (else the deck's front matter title or first heading); `core: false` leaves out the short-version link of that deck; `plugins` opens that deck with those built-in plugins added (`?use=`). A Markdown file with no `---` slide breaks, like a README, is split by headings, so it works as a deck without changes.
 - `scan` reads the web server's directory listing. The top folder (`'.'`) doesn't work because `index.html` hides its listing, so put decks one level down, like `slides/*`. When opening without a server, or on GitHub Pages, list them yourself with `decks: [{ src, title }, …]`.
 - Paths in the config are **relative to the launcher page** (even when you use a config in another folder via `data-config`).
 

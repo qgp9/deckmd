@@ -19,15 +19,18 @@ const titleOf = (text, src) => {
   return t || /^#\s+(.+)$/m.exec(text)?.[1] || src;
 };
 
-// every example deck in git: examples/<deck>/*.md, the home deck first
+// every example deck in git: examples/<deck>/*.md, the home deck first. Each is opened with the source plugin (a slide under each slide with its Markdown), except the hand-split readme example
 const decks = execFileSync('git', ['ls-files', '-z', '--', 'examples/*/*.md'], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean).sort()
-  .map(src => ({ src, title: titleOf(fs.readFileSync(path.join(ROOT, src), 'utf8'), src) }));
+  .map(src => ({ src, title: titleOf(fs.readFileSync(path.join(ROOT, src), 'utf8'), src), ...(src.startsWith('examples/readme/') ? {} : { plugins: ['source'] }) }));
+// the two READMEs are decks too (no slide breaks in them: split by headings), listed last; they have no short version
+decks.push({ src: 'README.md', title: 'README: split by headings (no slide breaks)', core: false, plugins: ['source'] },
+  { src: 'README.ko.md', title: 'README (Korean): split by headings', core: false, plugins: ['source'] });
 if (!decks.some(d => d.src === HOME)) throw new Error(`home deck not found: ${HOME}`);
 decks.sort((a, b) => (b.src === HOME) - (a.src === HOME));
 
 // copy what the site needs: the tracked files only (same result locally and in CI), not tests, tools, docs or local leftovers
 fs.rmSync(OUT, { recursive: true, force: true });
-const PARTS = ['index.html', 'LICENSE', 'js', 'css', 'themes', 'plugins', 'examples'];
+const PARTS = ['index.html', 'LICENSE', 'README.md', 'README.ko.md', 'docs', 'js', 'css', 'themes', 'plugins', 'examples'];      // (docs: the links in the READMEs)
 const tracked = execFileSync('git', ['ls-files', '-z', '--', ...PARTS], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean);
 for (const rel of tracked) {
   fs.mkdirSync(path.dirname(path.join(OUT, rel)), { recursive: true });

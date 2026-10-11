@@ -50,7 +50,10 @@ const mathCheck = d => {                                       // the math fixtu
 function listCheck(d) {
   const hrefs = [...d.querySelectorAll('.deck-list a')].map(a => decodeURIComponent(a.getAttribute('href')));
   const missing = LIST_DECKS.filter(f => !hrefs.includes(`?src=examples/${f}`) || !hrefs.includes(`?src=examples/${f}&core`));
-  return !missing.length || `missing from list: ${missing.join(', ')}`;
+  if (missing.length) return `missing from list: ${missing.join(', ')}`;
+  // the two READMEs are listed after the scan, open with the source plugin added (?use=source), and have no short version (core: false: no &core link)
+  const bad = ['README.md', 'README.ko.md'].filter(f => !hrefs.includes(`?src=${f}&use=source`) || hrefs.some(h => h.startsWith(`?src=${f}`) && h.endsWith('&core')));
+  return !bad.length || `README entries wrong in the list: ${bad.join(', ')}`;
 }
 
 // Checks: slides and notes are counts, ext = number of outside requests (0 = offline), text = text that must be on screen, check = other checks
@@ -71,6 +74,15 @@ const CASES = [
         || `source slides: ${JSON.stringify(src)}`; } },
   { group: 'source', name: '?source=off hides them (the plugin stays loaded)', url: `${R}?src=tests/fixtures/source/talk.md&source=off`, slides: 3, check: d => d.querySelectorAll('.slides .source-slide').length === 0 || 'a source slide is there' },
   { group: 'source', name: '?core: a cut slide takes its source with it', url: `${R}?src=tests/fixtures/source/talk.md&core&defaultTier=none`, slides: 1, check: d => d.querySelectorAll('.slides .source-slide').length === 2 || 'source slides after ?core (front matter + source of the one left)' },
+  { group: 'view', name: 'README.md is a deck: no slide breaks, split by headings; ?use=source adds a source slide under each slide', url: `${R}?src=README.md&use=source`, check: d => {
+      const top = d.querySelectorAll('.slides > section').length, withSource = d.querySelectorAll('.slides > section > section.source-slide').length;
+      return (top >= 10 && withSource === top && d.querySelector('.slides h1')?.textContent.trim() === 'deckmd') || `slides ${top} · with a source slide ${withSource}`; } },
+  { group: 'view', name: '?use=source on a deck that already lists the source plugin: loaded once (one source slide per slide, not two)', url: `${R}?src=examples/grid/talk.md&use=source`, slides: 11, check: d =>
+      (d.querySelectorAll('.slides > section > section.source-slide').length === 12 && d.defaultView.DeckMD.loaded.filter(r => /plugins\/source\/source\.js$/.test(r.key)).length === 1)           // 11 slides: the front matter page makes 12
+      || `source slides ${d.querySelectorAll('.slides > section > section.source-slide').length}` },
+  { group: 'view', name: '?use= takes only the names of built-in plugins: a path, a URL or a dotted name is ignored', url: `${R}?src=tests/fixtures/headings/talk.md&use=../x,https://example.invalid/p.js,/etc/p,a.b,Source`, slides: 3, check: d =>
+      (!d.defaultView.DeckMD.loaded.some(r => /example\.invalid|\/x\b|etc\/p|a\.b|plugins\/source/.test(r.key)) && !d.defaultView.performance.getEntriesByType('resource').some(e => /example\.invalid/.test(e.name)))
+      || `loaded ${d.defaultView.DeckMD.loaded.map(r => r.key).join(', ')}` },
   { group: 'view', name: 'example math', url: `${R}?src=examples/math/talk.md`, slides: 5, check: d => (d.querySelectorAll('.slides .katex').length === 6 && d.querySelectorAll('.slides .math-error').length === 1) || 'formulas / errors in the math example' },
   { group: 'math', name: 'plugins: [math] → formulas are drawn; money, escapes and code stay text; a mistake stays in place', url: `${R}?src=tests/fixtures/math/talk.md`, slides: 3, check: mathCheck },
   { group: 'math', name: 'math: { output: mathml } → MathML in the page, and the KaTeX CSS (with its fonts) is not loaded at all', url: `${R}?src=tests/fixtures/math-mathml/talk.md`, slides: 1, check: d =>

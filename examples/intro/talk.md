@@ -1,6 +1,6 @@
 ---
 title: deckmd
-plugins: [grid]
+plugins: [grid, source]   # source: ↓ shows the Markdown of each slide (leave it out of your own talks)
 ---
 
 <!-- class: center -->
@@ -9,7 +9,7 @@ plugins: [grid]
 
 A reveal.js slide deck from a single Markdown file {.teaser}
 
-Press **→** to go on · **?** for shortcuts · **E** for the helper {.small .muted}
+Press **→** to go on · **↓** for the Markdown of a slide · **?** for shortcuts · **E** for the helper {.small .muted}
 
 Source: [examples/intro/talk.md](https://github.com/qgp9/deckmd/blob/main/examples/intro/talk.md) {.small .muted}
 
