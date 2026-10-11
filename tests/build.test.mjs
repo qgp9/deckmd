@@ -1189,20 +1189,21 @@ test('math plugin: libraries it asks for are known to localize (tools/libs.mjs) 
 test('pack: a font-face keeps only its woff2, whatever the order of the formats; local() and a list without woff2 stay', () => {
   const dir = path.join(OUT, 'fonts-order');
   fs.mkdirSync(dir, { recursive: true });
-  for (const f of ['a.ttf', 'a.woff', 'a.woff2', 'b.woff', 'b.woff2', 'c.woff2', 'c.woff', 'd.ttf', 'd.woff']) fs.writeFileSync(path.join(dir, f), `font ${f}`);
+  for (const f of ['a.ttf', 'a.woff', 'a.woff2', 'b.woff', 'b.woff2', 'c.woff2', 'c.woff', 'd.ttf', 'd.woff', 'e.woff2', 'e.woff']) fs.writeFileSync(path.join(dir, f), `font ${f}`);
   fs.writeFileSync(path.join(dir, 'fonts.css'), [
     '@font-face{font-family:A;src:url(a.ttf) format("truetype"),url(a.woff) format("woff"),url(a.woff2) format("woff2")}',      // woff2 last
     '@font-face{font-family:B;src:local("B Local"),url(b.woff) format("woff"),url(b.woff2) format("woff2")}',
     '@font-face{font-family:C;src:url(c.woff2),url(c.woff)}',                                                                    // no format() hints
     '@font-face{font-family:D;src:url(d.ttf) format("truetype"),url(d.woff) format("woff")}',                                    // no woff2: both stay
+    '.x{--font-src:url(e.woff2) format("woff2"),url(e.woff) format("woff")}',                                                  // not a @font-face: left as written
   ].join('\n'));
   fs.writeFileSync(path.join(dir, 'talk.md'), '---\ntitle: fonts\ncss: [fonts.css]\n---\n\n## a\n');
   const { html } = make(path.relative(ROOT, path.join(dir, 'talk.md')), 'fonts-order.html', '--offline');
   const css = /<style data-src="[^"]*fonts\.css"[^>]*>([\s\S]*?)<\/style>/.exec(html)?.[1] || '';
   const count = (re) => (css.match(re) || []).length;
-  assert.equal(count(/data:font\/woff2;/g), 3, 'A, B and C: their woff2');
+  assert.equal(count(/data:font\/woff2;/g), 4, 'A, B and C: their woff2; and the custom property keeps its own');
   assert.equal(count(/data:font\/ttf;/g), 1, 'only D keeps its ttf');
-  assert.equal(count(/data:font\/woff;/g), 1, 'only D keeps its woff');
+  assert.equal(count(/data:font\/woff;/g), 2, 'D keeps its woff, and the custom property its woff (outside @font-face nothing is dropped)');
   assert.match(css, /local\("B Local"\)/);
 });
 
