@@ -16,7 +16,8 @@ js/
   md-spans.js           markdown-it-bracketed-spans wrapped for the browser ([text]{.class})
 css/base.css            shared rules (.cols .card .chapter … and the variable list). Always loaded first, regardless of theme
 themes/<name>/<name>.css  themes: ember (default), catppuccin, solarized
-plugins/grid/           built-in plugin (```grid cell diagrams)
+plugins/grid/           built-in plugin (```grid cell diagrams and ```table tables)
+plugins/source/         built-in plugin: under each slide, a slide with its Markdown source (plugins: [source])
 templates/              files to copy into your talks repository: index.html, index.cdn.html (deckmd from the CDN; init fills in the version), index.full.html, deck.config.js, deck.config.full.js, talk.md
 tools/
   serve.mjs             npx deckmd serve: the project, decks or folders (launcher page and config made on the fly without a project; deckmd under /_deckmd/)
@@ -30,7 +31,7 @@ tools/
 scripts/version.mjs     repo maintenance, not published: npm version copies the new version into DeckMD.version
 scripts/site.mjs        builds the demo site into _site/ (intro deck as home, all examples in ?deck-list); .github/workflows/pages.yml deploys it on push to main
 vendor/                 (not in git) local copy fetched by localize.mjs
-examples/<deck>/        example decks: syntax (syntax guide), grid (cell diagrams), readme, page (a deck written in HTML), interactive
+examples/<deck>/        example decks: syntax (syntax guide), grid (cell diagrams and tables; it also uses the source plugin), readme, page (a deck written in HTML), interactive
 docs/                   documentation
 tests/                  build.test.mjs, browser.html, fixtures/
 package.json            npm package deckmd (bin: npx deckmd, dependency jsdom)
@@ -42,7 +43,7 @@ The npm package contains only the runtime (`js/ css/ themes/ plugins/`), `templa
 
 1. The **launcher page** has a single `<script src="…/js/boot.js">`.
 2. **boot.js**: inserts the files in its list (`LIST`) into the page in order — config (`deck.config.js`), reveal.js and its CSS, fonts, plugins (notes, highlight), markdown-it and its plugins, js-yaml, `defaults.js`, `notices.js`, `pack.js`, `deck.js`. Libraries use CDN URLs (with `data-local`, the same path under `vendor/`); our own files are relative to `boot.js`'s own URL. If the launcher page already has a tag with the same name, it is skipped. The final `deck.js` waits until all CSS is loaded.
-3. **deck.js**: merges the config (`defaults.js` ← `deck.config.js` ← front matter ← URL), reads the Markdown (fetch with a server, a file picker without one, the embedded copy in a bundled file), loads the theme, CSS and plugins, splits the Markdown into slides and renders them with markdown-it, runs plugin post-processing, then calls `Reveal.initialize`.
+3. **deck.js**: merges the config (`defaults.js` ← `deck.config.js` ← front matter ← URL), reads the Markdown (fetch with a server, a file picker without one, the embedded copy in a bundled file), loads the theme, CSS and plugins, splits the Markdown into slides and renders them with markdown-it (remembering each slide's Markdown in `DeckMD.sources` and the front matter in `DeckMD.frontMatter`, which the source plugin shows), runs plugin post-processing, then calls `Reveal.initialize`.
 4. **pack.js**: the E key panel. When packing, it gathers what deck.js recorded (the initial tags `DeckMD.staticTags`, the loaded theme, CSS and plugins `DeckMD.loaded`, the Markdown source, images) and builds a single HTML file.
 
 `templates/index.full.html` is what `boot.js` does, written out as explicit tags.
