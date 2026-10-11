@@ -46,12 +46,14 @@
     hooks: [],         // (section, deck) => void — after a slide is attached to the DOM
     frontMatter: '',   // the front matter as written (--- … ---), '' if there is none. Only for a deck made from Markdown
     sources: new WeakMap(),   // section → the Markdown it was made from (slide settings comment + content, without the notes). Only for slides made from Markdown
-    slideInfo: new WeakMap(), // section → where the slide is in the Markdown file: { startLine, endLine, source, notes }. Only for slides made from Markdown
+    slideInfo: new WeakMap(), // section → where the slide is in the Markdown file: { section, startLine, endLine, source, notes }. Only for slides made from Markdown
                               //   startLine..endLine: 1-based, inclusive, from the first to the last non-blank line of the slide (the front matter's lines count)
                               //   source: those lines as written (settings comment, content and speaker notes). notes: the speaker notes alone
+                              //   source and notes are worked out when you read them (getters), so a deck nobody asks pays for the two numbers only.
+                              //   Don't spread the object ({ ...info }): that reads them all at once
                               //   (sources, above, is what was rendered: without the notes, and for a deck split by headings the text deckmd built from the headings)
-    slides() {                // the slides of the page in order, each { section, startLine, endLine, source, notes } (slides made from Markdown only; ?core cuts are gone)
-      return [...document.querySelectorAll('.slides section')].filter(s => this.slideInfo.has(s)).map(section => ({ section, ...this.slideInfo.get(section) }));
+    slides() {                // the slides of the page in order: the slideInfo objects themselves (slides made from Markdown only; ?core cuts are gone)
+      return [...document.querySelectorAll('.slides section')].map(s => this.slideInfo.get(s)).filter(Boolean);
     },
     runs: {},          // name → (section) => cleanup function | void — when a slide with the slide setting run: name is shown
     srcUrl,
@@ -359,14 +361,24 @@
     return [text, ''];
   }
 
-  // loc: { startLine, endLine, source } where the slide is in the file (see DeckMD.slideInfo); the notes are added here
+  // The file's lines, split once and kept while DeckMD.source stays the same string (read by the lazy source of DeckMD.slideInfo)
+  let linesOfText, linesOfCache;
+  const fileLines = () => (linesOfText === DeckMD.source ? linesOfCache : (linesOfCache = String(linesOfText = DeckMD.source).split(/\r?\n/)));
+
+  // loc: { startLine, endLine } where the slide is in the file (see DeckMD.slideInfo)
   function buildSection(src, md, loc) {
     const { attrs, rest } = directives(src);
     const [content, notes] = splitNotes(rest);
     const section = document.createElement('section');
     applyAttrs(section, attrs);
     DeckMD.sources.set(section, (src.slice(0, src.length - rest.length) + content).trim());
-    if (loc) DeckMD.slideInfo.set(section, { ...loc, notes: (notes || '').trim() });
+    if (loc) {
+      DeckMD.slideInfo.set(section, {
+        section, startLine: loc.startLine, endLine: loc.endLine,
+        get source() { return fileLines().slice(this.startLine - 1, this.endLine).join('\n'); },
+        get notes() { return (splitNotes(directives(this.source).rest)[1] || '').trim(); },
+      });
+    }
     section.innerHTML = md.render(content);
     if (notes && notes.trim()) {
       const aside = document.createElement('aside');
@@ -630,11 +642,9 @@
     if (!pageSections) {
       const split = params.get('split') || meta.split || CFG.split || (hasRules(body) ? 'rules' : 'headings');
       const sources = split === 'headings' ? splitHeadings(body, +(params.get('lines') || meta.lines || CFG.lines)) : splitSlides(body);
-      const fileLines = DeckMD.source.split(/\r?\n/);
       for (const c of sources) {
         if (!c.text.trim()) continue;
-        const startLine = c.start != null ? c.start + bodyLine - 1 : null, endLine = c.end != null ? c.end + bodyLine - 1 : null;
-        deck.appendChild(buildSection(c.text, DeckMD.md, startLine == null ? null : { startLine, endLine, source: fileLines.slice(startLine - 1, endLine).join('\n') }));
+        deck.appendChild(buildSection(c.text, DeckMD.md, c.start == null ? null : { startLine: c.start + bodyLine - 1, endLine: c.end + bodyLine - 1 }));
       }
     }
     // ?core: only slides whose tier is core. Slides without a tier get defaultTier (default core). If no slides remain, keep them all and warn (instead of an empty deck)

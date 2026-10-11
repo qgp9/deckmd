@@ -86,6 +86,12 @@ const CASES = [
   { group: 'syntax', name: '?core with no core slides shows all', url: `${R}?src=examples/grid/talk.md&core&defaultTier=none`, slides: 11 },
   // DeckMD.slides(): the lines of each slide in the Markdown file (an editor jumps between the deck and the file with these)
   { group: 'slide info', name: '--- slides: line ranges and notes (a Note: or --- inside a code block is not a split; a blank slide is skipped)', url: `${R}?src=tests/fixtures/lines/talk.md`, slides: 3, check: slidesCheck([[5, 10, 'say one'], [14, 24, 'say two'], [29, 29, '']]) },
+  { group: 'slide info', name: 'lazy: source and notes are getters, and slides() hands out the slideInfo objects themselves (nothing is copied or read)', url: `${R}?src=tests/fixtures/lines/talk.md`, slides: 3, check: d => {
+      const DM = d.defaultView.DeckMD, S = DM.slides();
+      if (!S.length) return 'no slides';
+      for (const k of ['source', 'notes']) if (typeof Object.getOwnPropertyDescriptor(S[0], k)?.get !== 'function') return `${k} is not a getter`;
+      if (S.some(i => i !== DM.slideInfo.get(i.section))) return 'slides() copies the info objects';
+      return true; } },
   { group: 'slide info', name: 'split by headings: a slide covers its heading and the blocks under it', url: `${R}?src=tests/fixtures/lines/readme.md`, slides: 4, check: slidesCheck([[1, 3], [5, 8], [10, 12], [14, 20]]) },
   { group: 'slide info', name: 'split by headings, lines=2: continued slides start at their first block', url: `${R}?src=tests/fixtures/lines/readme.md&lines=2`, slides: 7, check: slidesCheck([[1, 1], [3, 3], [5, 8], [10, 12], [14, 16], [18, 18], [20, 20]]) },
   { group: 'slide info', name: 'with the source plugin: only the real slides, not the source slides', url: `${R}?src=tests/fixtures/source/talk.md`, slides: 3, check: d => slidesCheck([[6, 11], [15, 19], [23, 25]])(d) === true && !d.defaultView.DeckMD.slides().some(s => s.section.classList.contains('source-slide')) || 'source slides are listed' },
