@@ -394,18 +394,25 @@
   const fileLines = () => (linesOfText === DeckMD.source ? linesOfCache : (linesOfCache = String(linesOfText = DeckMD.source).split(/\r?\n/)));
 
   // loc: { startLine, endLine } where the slide is in the file (see DeckMD.slideInfo)
+  // The slide as written without the speaker notes: its settings comment and its content. One place, because DeckMD.sources (what was rendered) and
+  // slideInfo.withoutNotes (the lines of the file) must agree for a slide that is written as it is rendered
+  function textWithoutNotes(src) {
+    const d = directives(src);
+    return (src.slice(0, src.length - d.rest.length) + splitNotes(d.rest)[0]).trim();
+  }
+
   function buildSection(src, md, loc) {
     const { attrs, rest } = directives(src);
     const [content, notes] = splitNotes(rest);
     const section = document.createElement('section');
     applyAttrs(section, attrs);
-    DeckMD.sources.set(section, (src.slice(0, src.length - rest.length) + content).trim());
+    DeckMD.sources.set(section, textWithoutNotes(src));
     if (loc) {
       DeckMD.slideInfo.set(section, {
         section, startLine: loc.startLine, endLine: loc.endLine,
         get source() { return fileLines().slice(this.startLine - 1, this.endLine).join('\n'); },
         get notes() { return (splitNotes(directives(this.source).rest)[1] || '').trim(); },
-        get withoutNotes() { const src = this.source, d = directives(src); return (src.slice(0, src.length - d.rest.length) + splitNotes(d.rest)[0]).trim(); },   // the lines as written, without the notes
+        get withoutNotes() { return textWithoutNotes(this.source); },   // the lines as written, without the notes
       });
     }
     section.innerHTML = md.render(content);
@@ -912,7 +919,7 @@
   function fitSlides() {
     const H = Reveal.getConfig().height * 0.96;
     for (const sec of document.querySelectorAll('.reveal .slides section[data-fit]')) {      // also a slide inside a vertical stack (a plugin may put each slide in one)
-      const stack = sec.parentElement.matches('section') ? sec.parentElement : null;       // a hidden stack has no height: show it while measuring
+      const stack = sec.parentElement?.matches('section') ? sec.parentElement : null;       // a hidden stack has no height: show it while measuring
       const stackShown = stack?.style.display, shown = sec.style.display;
       try {
         if (stack) stack.style.display = 'block';
