@@ -7,6 +7,26 @@
 
 **데모: [qgp9.github.io/deckmd](https://qgp9.github.io/deckmd/)** — 이 페이지도 deckmd 덱입니다. 예제 전체는 [?deck-list](https://qgp9.github.io/deckmd/?deck-list) (영문).
 
+## TL;DR
+
+```bash
+cat > mydeck.md <<'EOF'
+# Hello deckmd
+
+---
+
+## A slide
+
+- Markdown in
+- slides out
+EOF
+npx deckmd mydeck.md --share      # → dist/mydeck.share.html: 작은 파일 하나, 브라우저로 열면 됩니다
+```
+
+쓰는 동안 바로 미리보기: `npx deckmd serve mydeck.md`. Node 가 없다면 [아래](#node-가-있어도-없어도)를 보세요. (`npx` 첫 실행은 설치 때문에 몇 초 걸립니다.)
+
+## 덱은 이렇게 생겼습니다
+
 ```markdown
 ---
 title: 첫 발표

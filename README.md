@@ -7,6 +7,26 @@ View it in the browser right away with no build step, and when you're done, pack
 
 **Demo: [qgp9.github.io/deckmd](https://qgp9.github.io/deckmd/)** — the page itself is a deckmd deck; all examples are under [?deck-list](https://qgp9.github.io/deckmd/?deck-list).
 
+## TL;DR
+
+```bash
+cat > mydeck.md <<'EOF'
+# Hello deckmd
+
+---
+
+## A slide
+
+- Markdown in
+- slides out
+EOF
+npx deckmd mydeck.md --share      # → dist/mydeck.share.html: one small file, open it in a browser
+```
+
+Live preview while you write: `npx deckmd serve mydeck.md`. No Node? [See below](#works-with-or-without-node). (The first `npx` run takes a few seconds to install.)
+
+## What a deck looks like
+
 ```markdown
 ---
 title: My first talk
