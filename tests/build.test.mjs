@@ -1242,6 +1242,7 @@ test('README: the TL;DR block runs as written (here-doc, both packs) and the siz
       if (shell) out.push({ body: false, line: shell });
       end = /<<-?\s*["']?(\w+)["']?$/.exec(shell)?.[1] ?? null;
     }
+    assert.equal(end, null, `the block has a here-doc that is never closed (${end})`);
     return out;
   };
   const commands = text => lines(text).map(l => l.line);
@@ -1249,15 +1250,16 @@ test('README: the TL;DR block runs as written (here-doc, both packs) and the siz
   assert.ok(commands(en).includes('# Hello deckmd'), 'the here-doc body is kept, headings included');
   const script = lines(en).map(l => (l.body ? l.line : l.line.replaceAll('npx deckmd', `node ${JSON.stringify(BUILD)}`))).join('\n');             // npx deckmd = this checkout
   // the files the README says it makes (# → dist/…): they must come out, and be about the size it says
-  const claimed = [...en.matchAll(/→ (dist\/[^\s:]+)/g)].map(m => m[1]);
-  assert.equal(claimed.filter(f => /\.share\./.test(f)).length + claimed.filter(f => /\.offline\./.test(f)).length, 2, `the README block names a share and an offline file: ${claimed.join(', ')}`);
+  const claimed = [...en.matchAll(/→ (dist\/[^\s:]+)/g)].map(m => m[1].replace(/[.,)\]`'"]+$/, ''));                 // a trailing . , ) ` is punctuation of the sentence, not of the name
+  const named = kind => claimed.filter(f => f.includes(`.${kind}.`));
+  assert.ok(named('share').length === 1 && named('offline').length === 1, `the README block should name one share and one offline file (…share.html, …offline.html); it names: ${claimed.join(', ') || 'none'}`);
   const dir = path.join(SANDBOX, 'tldr');
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
   const r = spawnSync('sh', ['-c', script], { cwd: dir, encoding: 'utf8' });
   assert.equal(r.status, 0, `${r.stderr}${r.stdout}`);
   for (const f of claimed) assert.ok(fs.existsSync(path.join(dir, f)), `${f}: the README says the block makes it, but it does not (update the README, or this test)`);
-  const size = kind => fs.statSync(path.join(dir, claimed.find(f => f.includes(`.${kind}.`)))).size;
+  const size = kind => fs.statSync(path.join(dir, named(kind)[0])).size;
   const share = size('share'), offline = size('offline');
   // the README says "about 100 KB" and "4 MB": when a bundle grows out of these ranges, update the numbers in README.md and README.ko.md
   assert.ok(share > 50 * 1024 && share < 300 * 1024, `share bundle ${share} bytes: the README says about 100 KB`);
