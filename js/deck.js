@@ -184,6 +184,14 @@
   }
 
   function loadScript(url, key) {
+    try {
+      const u = new URL(String(url), 'http://dummy.base');
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+        return Promise.reject(new Error(`Security: Refusing to load script with unsanitized protocol: ${url}`));
+      }
+    } catch (e) {
+      // Invalid URL
+    }
     if (key != null) DeckMD.loaded.push({ url: String(url), key, as: 'js' });
     if (inlined(url)) return Promise.resolve();
     return new Promise((resolve, reject) => {
