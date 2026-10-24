@@ -1386,3 +1386,21 @@ test('register v2: math declares its libraries in the new form and localize stil
   const math = pluginLibs(ROOT, { list: [] }).find(p => p.plugin === 'math');
   assert.deepEqual(math.libs, ['https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.css', 'https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js']);
 });
+
+test('security: assertHttpUrl rejects dangerous protocols', () => {
+  const src = fs.readFileSync(path.join(ROOT, 'js/deck.js'), 'utf8');
+  const match = src.match(/function assertHttpUrl\(url\) \{[\s\S]*?\n  \}/);
+  assert.ok(match, 'assertHttpUrl function found in deck.js');
+
+  const assertHttpUrl = new Function('url', `${match[0]}\nreturn assertHttpUrl(url);`);
+
+  assert.throws(() => assertHttpUrl('javascript:alert(1)'), /Security: Refusing to load resource with unsanitized protocol/);
+  assert.throws(() => assertHttpUrl(' data:text/html,x'), /Security: Refusing to load resource with unsanitized protocol/);
+  assert.throws(() => assertHttpUrl('blob:http://example.com/'), /Security: Refusing to load resource with unsanitized protocol/);
+  assert.throws(() => assertHttpUrl('file:///etc/passwd'), /Security: Refusing to load resource with unsanitized protocol/);
+
+  assert.doesNotThrow(() => assertHttpUrl('http://example.com/x.js'));
+  assert.doesNotThrow(() => assertHttpUrl('https://example.com/x.css'));
+  assert.doesNotThrow(() => assertHttpUrl('./plugins/test/test.js'));
+  assert.doesNotThrow(() => assertHttpUrl('/assets/test.js'));
+});

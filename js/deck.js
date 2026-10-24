@@ -182,12 +182,11 @@
     try { assertHttpUrl(url); } catch (e) { return Promise.reject(e); }
     if (key != null) DeckMD.loaded.push({ url: String(url), key, as: 'css' });
     if (inlined(url)) return Promise.resolve();
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const l = document.createElement('link');
       l.rel = 'stylesheet';
       l.href = url;
-      l.onload = resolve;
-      l.onerror = () => reject(new Error(`could not load CSS: ${url}`));
+      l.onload = l.onerror = resolve;
       document.body.appendChild(l);     // must come after reveal.css added by boot.js (same order in bundled files: at the very end)
     });
   }
