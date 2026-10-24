@@ -170,8 +170,16 @@
     return [...document.querySelectorAll('[data-src]')].some(el => [here, pageBase].some(b => new URL(el.dataset.src, b).href === want));
   };
 
+  function assertHttpUrl(url) {
+    const u = new URL(String(url), 'http://dummy.base');
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+      throw new Error(`Security: Refusing to load resource with unsanitized protocol: ${url}`);
+    }
+  }
+
   // key = path written into <… data-src> when packing (deckmd's files = themes/x/x.css, files next to the deck = as written)
   function loadCSS(url, key) {
+    try { assertHttpUrl(url); } catch (e) { return Promise.reject(e); }
     if (key != null) DeckMD.loaded.push({ url: String(url), key, as: 'css' });
     if (inlined(url)) return Promise.resolve();
     return new Promise((resolve) => {
@@ -184,6 +192,7 @@
   }
 
   function loadScript(url, key) {
+    try { assertHttpUrl(url); } catch (e) { return Promise.reject(e); }
     if (key != null) DeckMD.loaded.push({ url: String(url), key, as: 'js' });
     if (inlined(url)) return Promise.resolve();
     return new Promise((resolve, reject) => {
