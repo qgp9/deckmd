@@ -1519,3 +1519,24 @@ test('register v2: math declares its libraries in the new form and localize stil
   const math = pluginLibs(ROOT, { list: [] }).find(p => p.plugin === 'math');
   assert.deepEqual(math.libs, ['https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.css', 'https://cdn.jsdelivr.net/npm/katex@0.18.7/dist/katex.min.js']);
 });
+
+test('E panel: opened as a file, a project deck says how to serve its folder (a bundle packs anyway, so it says nothing)', async () => {
+  const { JSDOM } = (await import('jsdom')).default;
+  const panel = (url, bundled = '') => {
+    const dom = new JSDOM(`<!doctype html><body>${bundled}</body>`, { url, runScripts: 'outside-only' });
+    dom.window.DeckMD = { loaded: [], staticTags: [] };
+    dom.window.eval(fs.readFileSync(path.join(ROOT, 'js/pack.js'), 'utf8'));
+    dom.window.DeckPack.open();
+    const box = dom.window.document.querySelector('.pk');
+    return { cmds: [...box.querySelectorAll('pre.cmd')].map(p => p.textContent), text: box.textContent };
+  };
+  let p = panel('file:///Users/me/my%20talks/index.html?src=slides/a/deck.md');
+  assert.deepEqual(p.cmds, ['cd "/Users/me/my talks"', 'npx deckmd serve', 'python3 -m http.server']);
+  assert.match(p.text, /open http:\/\/localhost:8000\/\?src=slides\/a\/deck\.md \(or the address it prints\)/);
+  p = panel('file:///C:/Users/me/talks/deck.html');
+  assert.deepEqual(p.cmds, ['cd "C:\\Users\\me\\talks"', 'npx deckmd serve', 'python -m http.server'], 'Windows: a Windows path, and python');
+  assert.match(p.text, /open http:\/\/localhost:8000\/deck\.html /);
+  assert.equal(panel('file:///a/50%zz/index.html').cmds[0], 'cd "/a/50%zz"', 'a stray % is kept as written');
+  assert.deepEqual(panel('file:///Users/me/x.offline.html', '<script data-src="js/deck.js" data-from="deckmd"></script>').cmds, [], 'a bundle: no help');
+  assert.deepEqual(panel('http://localhost:8000/?src=a.md').cmds, [], 'served: no help');
+});
