@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { findProject, isInside, isLauncher, shq } from './project.mjs';
+import { findProject, placeIn, realDir, isLauncher, shq } from './project.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MODES = ['offline', 'share'];
@@ -60,7 +60,7 @@ if (UNPACK && modes.length) die('--unpack cannot be used together with a bundle 
 const MODE = modes[0] || 'offline';
 const FORCE = args.includes('--force');
 
-const INPUT = path.resolve(inputs[0]);
+let INPUT = path.resolve(inputs[0]);
 if (!fs.existsSync(INPUT)) die(`not found: ${inputs[0]}`);
 const posix = p => p.split(path.sep).join('/');
 const show = p => posix(path.relative(process.cwd(), p)) || '.';
@@ -73,11 +73,14 @@ async function pack() {
   // The launcher page is the index.html of the deckmd project the command runs in (found from the current folder upwards, like git finds its
   // repository), or, with no project, one made in memory in the current folder. deck.js opens only Markdown under the page's folder (?src),
   // so a deck outside that folder can't be opened: say so here, before jsdom, and say what to run.
-  // Compared by the written path, like deck.js does (no realpath): a link inside the folder counts as inside.
+  // Compared by the written path, like deck.js does (no realpath): a link inside the folder counts as inside. A deck written through a link to
+  // the folder itself (macOS /tmp → /private/tmp) is taken as the same file in the real folder (placeIn), so the page's ?src works out.
   const project = /\.html?$/i.test(INPUT) ? null : findProject(process.cwd());
   const baseDir = project ? project.root : process.cwd();
-  if (!/\.html?$/i.test(INPUT) && !isInside(INPUT, baseDir)) {
-    console.error(`${inputs[0]} is outside ${project ? `the deckmd project at ${show(baseDir)}` : 'the current folder'}: the launcher page is ${project ? 'there' : 'here'} and only opens Markdown under it.\nRun it from the deck's folder:  cd ${shq(show(path.dirname(INPUT)))} && npx deckmd ${shq(path.basename(INPUT))}`);
+  const placed = /\.html?$/i.test(INPUT) ? INPUT : placeIn(INPUT, baseDir);
+  if (placed) INPUT = placed;
+  else {
+    console.error(`${inputs[0]} is outside ${project ? `the deckmd project at ${show(baseDir)}` : 'the current folder'}: the launcher page is ${project ? 'there' : 'here'} and only opens Markdown under it.\nRun it from the deck's folder:  cd ${shq(show(realDir(INPUT)))} && npx deckmd ${shq(path.basename(INPUT))}`);
     process.exit(1);
   }
   let jsdom;
