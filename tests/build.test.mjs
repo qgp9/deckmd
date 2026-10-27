@@ -1544,6 +1544,7 @@ test('E panel: opened as a file, a project deck says how to serve its folder (a 
   assert.deepEqual(p.cmds, ['cd "C:\\Users\\me\\talks"', 'npx deckmd serve', 'python -m http.server'], 'Windows: a Windows path, and python');
   assert.match(p.text, /open http:\/\/localhost:8000\/deck\.html /);
   assert.equal(panel('file:///a/50%zz/index.html').cmds[0], "cd '/a/50%zz'", 'a stray % is kept as written');
+  assert.deepEqual(panel('file://server/talks/my%20deck/index.html').cmds, ['pushd "\\\\server\\talks\\my deck"', 'npx deckmd serve', 'python -m http.server'], 'a Windows network share: pushd (cmd.exe cannot cd there)');
   assert.deepEqual(panel('file:///Users/me/x.offline.html', { bundled: '<script type="text/markdown">\n## x\n</script><script data-src="js/deck.js" data-from="deckmd"></script>' }).cmds, [], 'a bundle: no help');
   assert.deepEqual(panel('file:///Users/me/x/index.html', { bundled: '<script data-src="js/deck.js" data-from="deckmd"></script>', here: 'file:///Users/me/x/' }).cmds.slice(1),
     ['npx deckmd serve', 'python3 -m http.server'], 'an unpacked zip (deckmd inside, the Markdown a file): help');
@@ -1557,4 +1558,13 @@ test('E panel: opened as a file, a project deck says how to serve its folder (a 
   await new Promise(r => setTimeout(r, 10));
   assert.equal(copied, "cd '/Users/me/t'");
   assert.equal(b.textContent, 'Copied');
+  // Neither the clipboard API nor execCommand: the button says so and the command is left selected
+  p = panel('file:///Users/me/t/index.html');
+  Object.defineProperty(p.window.navigator, 'clipboard', { value: { writeText: async () => { throw new Error('denied'); } } });
+  p.window.document.execCommand = () => false;
+  const b2 = p.window.document.querySelector('.deck-serve button[data-copy]');
+  b2.click();
+  await new Promise(r => setTimeout(r, 10));
+  assert.equal(b2.textContent, 'Select ⌘/Ctrl+C');
+  assert.equal(p.window.getSelection().toString(), "cd '/Users/me/t'");
 });

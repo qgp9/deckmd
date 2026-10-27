@@ -271,8 +271,10 @@ ${tail.join('\n')}
     let dir = location.pathname.replace(/[^/]*$/, '');
     try { dir = decodeURIComponent(dir); } catch {}                   // a stray % in a folder name is not an escape
     const page = location.pathname.split('/').pop();
-    const win = /^\/[A-Za-z]:\//.test(dir);                         // file:///C:/talks/ → C:\talks
-    dir = win ? dir.slice(1, -1).replace(/\//g, '\\') : dir.replace(/(.)\/$/, '$1');
+    // Windows: file:///C:/talks/ → C:\talks, and a network share file://server/talks/ → \\server\talks (cmd.exe can't cd there: pushd)
+    const unc = !!location.host, win = unc || /^\/[A-Za-z]:\//.test(dir);
+    dir = unc ? `\\\\${location.host}${dir.slice(0, -1).replace(/\//g, '\\')}`
+      : win ? dir.slice(1, -1).replace(/\//g, '\\') : dir.replace(/(.)\/$/, '$1');
     // Quoted for the shell it will be pasted into: single quotes on macOS/Linux (nothing inside is special, so a $ or " stays as it is;
     // a ' is written '\''), double quotes on Windows (cmd.exe expands nothing in them, and " can't be in a Windows name)
     const quote = d => (win ? `"${d}"` : `'${d.replace(/'/g, "'\\''")}'`);
@@ -281,7 +283,7 @@ ${tail.join('\n')}
     const cmd = c => `<div class="row"><code>${esc(c)}</code><button type="button" data-copy>Copy</button></div>`;
     serveStyle();
     return `<div class="deck-serve"><h4>${title} <span>${why}</span></h4>
-      <p>In a terminal, go to this folder:</p>${cmd(`cd ${quote(dir)}`)}
+      <p>In a terminal, go to this folder:</p>${cmd(`${unc ? 'pushd' : 'cd'} ${quote(dir)}`)}
       <p>then start one of these (Node, or Python):</p>${cmd('npx deckmd serve')}${cmd(`${win ? 'python' : 'python3'} -m http.server`)}
       <p>and open <a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a> (or the address it prints).</p></div>`;
   }
@@ -299,12 +301,17 @@ ${tail.join('\n')}
   document.addEventListener('click', async (e) => {
     const b = e.target.closest?.('.deck-serve .row button[data-copy]');
     if (!b) return;
-    const text = b.previousElementSibling.textContent;
+    const code = b.previousElementSibling, text = code.textContent;
+    let ok = true;
     try { await navigator.clipboard.writeText(text); } catch {
       const t = Object.assign(document.createElement('textarea'), { value: text });
-      document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove();
+      document.body.appendChild(t); t.select();
+      try { ok = document.execCommand('copy'); } catch { ok = false; }
+      t.remove();
     }
-    b.textContent = 'Copied';
+    // When neither works, leave the command selected to copy by hand
+    if (!ok) { const r = document.createRange(); r.selectNodeContents(code); getSelection().removeAllRanges(); getSelection().addRange(r); }
+    b.textContent = ok ? 'Copied' : 'Select ⌘/Ctrl+C';
     setTimeout(() => { b.textContent = 'Copy'; }, 1200);
   });
 
