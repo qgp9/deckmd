@@ -118,15 +118,15 @@ npx deckmd serve slides                   # a folder: every .md in it, two level
 If you open `index.html` directly in the browser, the browser blocks a `file://` page from reading neighboring files, so the first time you pick the Markdown file yourself (button or drag and drop).
 - Image and CSS paths are relative to the location given in `?src=`, so for a deck with images, open `index.html?src=slides/x/deck.md` and pick that file.
 - Chrome and Edge remember the picked file and redraw as soon as you save changes. Other browsers only remember it until you reload.
-- Packing (E key) needs the files next to the page, which a `file://` page can't read. Serve the folder instead; any static server works, and the E panel shows these commands filled in for that page:
+- Packing (E key) needs the files next to the page, which a `file://` page can't read. Serve the folder instead; any static server works. The pick screen and the E panel show these commands filled in for that page, each with a copy button:
 
   ```bash
-  cd "the folder of index.html"
-  npx deckmd serve                # with node; or:
-  python3 -m http.server          # with Python (python on Windows)
+  cd 'the folder of index.html'
+  node deckmd/tools/build.mjs serve   # deckmd in a local folder: nothing to install. With deckmd from the CDN: npx deckmd serve
+  python3 -m http.server              # or with Python (python on Windows)
   ```
 
-  Then open `http://localhost:8000/` (with the same `?src=…`) and press E there. A bundled file needs none of this: it packs from `file://`.
+  Then open `http://localhost:8000/` (with the same `?src=…`): the deck opens without picking, and E packs it. A bundled file needs none of this: it packs from `file://`.
 
 ## URL options
 

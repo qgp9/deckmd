@@ -261,23 +261,55 @@ ${tail.join('\n')}
       <h4>Print / PDF <span>opens in a new tab, then ⌘/Ctrl+P → Save as PDF</span></h4><div class="md"><button data-p="">Slides only</button><button data-p="separate-page">With notes</button></div>`;
   }
 
-  // Opened as a file (file://), a deck can be viewed but not packed: the browser keeps the page from reading the files next to it.
-  // Say how to serve this folder instead, with the commands filled in. Not for a bundle: everything is inside it, so it packs anyway.
-  function serveSection() {
+  // Opened as a file (file://), a deck can be viewed (after picking the Markdown) but not packed: the browser keeps the page from
+  // reading the files next to it. serveHelp() says how to serve this folder instead, with the commands filled in and a copy button
+  // each. Shown in the E panel and on deck.js's pick screen; '' when served, or for a bundle (everything is inside it, so it packs).
+  function serveHelp(title, why) {
     if (location.protocol !== 'file:' || document.querySelector('script[data-from="deckmd"][data-src="js/deck.js"]')) return '';
     let dir = location.pathname.replace(/[^/]*$/, '');
     try { dir = decodeURIComponent(dir); } catch {}                   // a stray % in a folder name is not an escape
     const page = location.pathname.split('/').pop();
     const win = /^\/[A-Za-z]:\//.test(dir);                         // file:///C:/talks/ → C:\talks
     dir = win ? dir.slice(1, -1).replace(/\//g, '\\') : dir.replace(/(.)\/$/, '$1');
+    // Quoted for the shell it will be pasted into: single quotes on macOS/Linux (nothing inside is special, so a $ or " stays as it is;
+    // a ' is written '\''), double quotes on Windows (cmd.exe expands nothing in them, and " can't be in a Windows name)
+    const quote = d => (win ? `"${d}"` : `'${d.replace(/'/g, "'\\''")}'`);
+    // deckmd in a local folder (deckmd/): its own server, plain node, nothing to download (serving needs no npm install).
+    // From a CDN: the npm package
+    const here = window.DeckMD?.here;
+    const local = here?.protocol === 'file:' ? pagePath(here.href) : null;
+    const node = local != null ? `node ${local}tools/build.mjs serve` : 'npx deckmd serve';
     const url = `http://localhost:8000/${/^index\.html?$/i.test(page) ? '' : page}${location.search}`;
-    // One command per block (click selects it): the two servers are alternatives, and cmd.exe has no # comments
-    const cmd = c => `<pre class="cmd">${esc(c)}</pre>`;
-    return `<h4>Packing needs a web server <span>opened as a file, the browser keeps this page from reading the files next to it</span></h4>
-      <p class="tip">In a terminal, go to this folder:</p>${cmd(`cd "${dir}"`)}
-      <p class="tip">then start one of these (Node, or Python):</p>${cmd('npx deckmd serve')}${cmd(`${win ? 'python' : 'python3'} -m http.server`)}
-      <p class="tip" style="margin-bottom:14px">and open <b>${esc(url)}</b> (or the address it prints), then press E there.</p>`;
+    // One command per line, each with its own copy button: the servers are alternatives, and cmd.exe has no # comments
+    const cmd = c => `<div class="row"><code>${esc(c)}</code><button type="button" data-copy>Copy</button></div>`;
+    serveStyle();
+    return `<div class="deck-serve"><h4>${title} <span>${why}</span></h4>
+      <p>In a terminal, go to this folder:</p>${cmd(`cd ${quote(dir)}`)}
+      <p>then start one of these (Node, or Python):</p>${cmd(node)}${cmd(`${win ? 'python' : 'python3'} -m http.server`)}
+      <p>and open <b>${esc(url)}</b> (or the address it prints).</p></div>`;
   }
+  function serveStyle() {
+    if (document.getElementById('deck-serve-css')) return;
+    const css = document.createElement('style');
+    css.id = 'deck-serve-css';
+    css.textContent = `.deck-serve{text-align:left;margin:0 0 14px;font-size:13px;line-height:1.5;color:#8b96a8}.deck-serve h4{margin:0 0 4px;font-size:14px;color:#8b96a8;font-weight:600}.deck-serve h4 span{font-weight:400;font-size:12px;margin-left:6px}
+      .deck-serve p{margin:0 0 2px;word-break:break-all}.deck-serve b{color:#e9edf3;font-weight:500}.deck-serve .row{display:flex;gap:6px;align-items:stretch;margin:2px 0 6px}
+      .deck-serve code{flex:1;padding:6px 10px;border-radius:8px;background:#0e1117;border:1px solid #2c3544;color:#e9edf3;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;user-select:all}
+      .deck-serve .row button{flex:none;width:auto;margin:0;padding:4px 10px;border-radius:8px;border:1px solid #2c3544;background:#1f2632;color:#e9edf3;font:12px sans-serif;cursor:pointer}.deck-serve .row button:hover{border-color:#ffb454}`;
+    document.head.appendChild(css);
+  }
+  // Copy buttons (one listener for every help box). The clipboard API, or the old way where it is missing or refused
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest?.('.deck-serve .row button[data-copy]');
+    if (!b) return;
+    const text = b.previousElementSibling.textContent;
+    try { await navigator.clipboard.writeText(text); } catch {
+      const t = Object.assign(document.createElement('textarea'), { value: text });
+      document.body.appendChild(t); t.select(); document.execCommand('copy'); t.remove();
+    }
+    b.textContent = 'Copied';
+    setTimeout(() => { b.textContent = 'Copy'; }, 1200);
+  });
 
   let box = null;
   function close() { box?.remove(); box = null; }
@@ -289,7 +321,7 @@ ${tail.join('\n')}
       <h3>deckmd <span>helper</span></h3>
       ${modeSection()}
       ${viewSection()}
-      ${serveSection()}
+      ${serveHelp('Packing needs a web server', 'opened as a file, the browser keeps this page from reading the files next to it')}
       <h4>Download: pack into one file</h4>
       <button data-m="offline"><b>Offline</b><small>Everything inside. Opens without internet, large</small></button>
       <button data-m="share"><b>Share</b><small>Libraries and fonts from the CDN. Small, needs internet</small></button>
@@ -301,8 +333,7 @@ ${tail.join('\n')}
     const css = document.createElement('style');
     css.textContent = `.pk{background:#161b24;color:#e9edf3;border:1px solid #2c3544;border-radius:16px;padding:24px 28px;width:min(460px,90vw);font:16px/1.5 "Pretendard Variable","Apple SD Gothic Neo",sans-serif}
       .pk h3{margin:0 0 14px;font-size:20px}.pk h3 span{color:#8b96a8;font-weight:400;font-size:14px;margin-left:6px}.pk .md{display:flex;gap:8px;margin:0 0 14px}.pk .md button{margin:0;text-align:center;padding:8px 10px;flex:1}.pk .md button[aria-pressed=true]{border-color:#ffb454;color:#ffb454}.pk h4{margin:0 0 4px;font-size:14px;color:#8b96a8;font-weight:600}.pk h4 span{font-weight:400;font-size:12px;margin-left:6px}.pk button{display:block;width:100%;text-align:left;margin:8px 0;padding:12px 16px;border-radius:10px;border:1px solid #2c3544;background:#1f2632;color:inherit;font:inherit;cursor:pointer}
-      .pk button:hover{border-color:#ffb454}.pk small{display:block;color:#8b96a8;font-size:13px}.pk .st{min-height:1.5em;color:#ffb454;font-size:13px;margin:10px 0 0;word-break:break-all}.pk .hint{color:#8b96a8;font-size:12px;margin:4px 0 0}
-      .pk .cmd{margin:2px 0 6px;padding:8px 10px;border-radius:8px;background:#0e1117;border:1px solid #2c3544;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;user-select:all}.pk .tip{margin:0 0 2px;font-size:13px;color:#8b96a8;word-break:break-all}.pk .tip b{color:#e9edf3;font-weight:500}`;
+      .pk button:hover{border-color:#ffb454}.pk small{display:block;color:#8b96a8;font-size:13px}.pk .st{min-height:1.5em;color:#ffb454;font-size:13px;margin:10px 0 0;word-break:break-all}.pk .hint{color:#8b96a8;font-size:12px;margin:4px 0 0}`;
     box.appendChild(css);
     document.body.appendChild(box);
     const st = box.querySelector('.st');
@@ -360,5 +391,5 @@ ${tail.join('\n')}
     if (e.key === 'e' || e.key === 'E') open();
   }, true);
 
-  window.DeckPack = { pack, open };
+  window.DeckPack = { pack, open, serveHelp };
 })();

@@ -21,7 +21,7 @@ While viewing a deck, press **E** → "Offline" or "Share" → the file is downl
 
 - Works when the deck was opened through a web server, or when you opened an already bundled file. A bundled file can be repacked as the other kind (offline → share).
 - "Offline (zip)" and "Share (zip)" in the same panel are [unpacking](#unpacking) in the browser. It is not shown for a deck written in HTML, which can't be unpacked yet.
-- For a deck opened without a server (`file://`), the browser blocks reading the files next to the page: your images, CSS and JS are left out, and when deckmd itself is a local folder (a `deckmd/` copy) nothing can be packed. Libraries and fonts from the CDN are still read. The panel then shows how to serve the folder: `cd` to it, `npx deckmd serve` or `python3 -m http.server`, and the address to open ([usage.md](usage.md#without-a-server)). A bundled file opened as `file://` packs fine: everything it needs is inside it.
+- For a deck opened without a server (`file://`), the browser blocks reading the files next to the page: your images, CSS and JS are left out, and when deckmd itself is a local folder (a `deckmd/` copy) nothing can be packed. Libraries and fonts from the CDN are still read. The panel then shows how to serve the folder, with copy buttons: `cd` to it, `node deckmd/tools/build.mjs serve` (or `npx deckmd serve` with deckmd from the CDN) or `python3 -m http.server`, and the address to open ([usage.md](usage.md#without-a-server)). A bundled file opened as `file://` packs fine: everything it needs is inside it.
 
 ## On the command line: build.mjs
 
