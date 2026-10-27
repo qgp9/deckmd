@@ -265,7 +265,9 @@ ${tail.join('\n')}
   // reading the files next to it. serveHelp() says how to serve this folder instead, with the commands filled in and a copy button
   // each. Shown in the E panel and on deck.js's pick screen; '' when served, or for a bundle (everything is inside it, so it packs).
   function serveHelp(title, why) {
-    if (location.protocol !== 'file:' || document.querySelector('script[data-from="deckmd"][data-src="js/deck.js"]')) return '';
+    // A bundle has deckmd and the deck inside. The index.html of an unpacked zip has deckmd inside but the deck in files: it needs this
+    const inside = document.querySelector('script[data-from="deckmd"][data-src="js/deck.js"]');
+    if (location.protocol !== 'file:' || (inside && document.querySelector('script[type="text/markdown"], #deck-meta'))) return '';
     let dir = location.pathname.replace(/[^/]*$/, '');
     try { dir = decodeURIComponent(dir); } catch {}                   // a stray % in a folder name is not an escape
     const page = location.pathname.split('/').pop();
@@ -275,9 +277,9 @@ ${tail.join('\n')}
     // a ' is written '\''), double quotes on Windows (cmd.exe expands nothing in them, and " can't be in a Windows name)
     const quote = d => (win ? `"${d}"` : `'${d.replace(/'/g, "'\\''")}'`);
     // deckmd in a local folder (deckmd/): its own server, plain node, nothing to download (serving needs no npm install).
-    // From a CDN: the npm package
+    // From a CDN, or inside the page (an unpacked zip): the npm package
     const here = window.DeckMD?.here;
-    const local = here?.protocol === 'file:' ? pagePath(here.href) : null;
+    const local = here?.protocol === 'file:' && !inside ? pagePath(here.href) : null;   // deckmd inside the page: no folder to run
     const node = local != null ? `node ${local}tools/build.mjs serve` : 'npx deckmd serve';
     const url = `http://localhost:8000/${/^index\.html?$/i.test(page) ? '' : page}${location.search}`;
     // One command per line, each with its own copy button: the servers are alternatives, and cmd.exe has no # comments

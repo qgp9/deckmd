@@ -1282,7 +1282,7 @@ test('README: the TL;DR block runs as written (here-doc, both packs) and the siz
   assert.ok(offline > 3 * 1048576 && offline < 6 * 1048576, `offline bundle ${offline} bytes: the README says 4 MB`);
 });
 
-test('unpack: only user files back to their places; packing again gives the same result', () => {
+test('unpack: only user files back to their places; packing again gives the same result', async () => {
   // The real-world layout: deckmd/ inside a presentation repository (here a link pointing to this repository)
   const repo = path.join(SANDBOX, 'unpack-repo');
   const w = (f, t) => { fs.mkdirSync(path.dirname(path.join(repo, f)), { recursive: true }); fs.writeFileSync(path.join(repo, f), t); };
@@ -1358,6 +1358,10 @@ test('unpack: only user files back to their places; packing again gives the same
     assert.match(tags(page), /<script src="deck\.config\.js" data-src="deck\.config\.js" data-file="deck\.config\.js"><\/script>/, `${mode}: the launcher page's config, as a file`);
     assert.match(page, /window\.DeckConfig = Object\.assign\(window\.DeckConfig \|\| \{\}, \{ home: 'deck', src: "talks\/t1\/talk\.md" \}\);<\/script>\n<script data-src="js\/deck\.js"/, `${mode}: opens this deck, set right before deck.js`);
     assert.deepEqual(keys(page).filter(k => !user.includes(k)), keys(html).filter(k => !user.includes(k) && !/^(\.\/)?(talk|hello)\.(css|js)$/.test(k)), `${mode}: everything else as in the bundle`);
+    // That index.html makes the folder a deckmd project (npx deckmd serve works there); the bundle itself is a deck, not a launcher
+    const { isLauncher } = await import(pathToFileURL(path.join(ROOT, 'tools/project.mjs')).href);
+    assert.equal(isLauncher(page), true, `${mode}: the zip's index.html is a launcher page`);
+    assert.equal(isLauncher(html), false, `${mode}: the bundle is not`);
     // Written out as a folder, index.html opens the deck from those files: packing that page gives the same deck and files back
     const dir = path.join(SANDBOX, `zip-${mode}`);
     for (const [f, data] of files) { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), data); }
@@ -1540,7 +1544,9 @@ test('E panel: opened as a file, a project deck says how to serve its folder (a 
   assert.deepEqual(p.cmds, ['cd "C:\\Users\\me\\talks"', 'node deckmd/tools/build.mjs serve', 'python -m http.server'], 'Windows: a Windows path, and python');
   assert.match(p.text, /open http:\/\/localhost:8000\/deck\.html /);
   assert.equal(panel('file:///a/50%zz/index.html').cmds[0], "cd '/a/50%zz'", 'a stray % is kept as written');
-  assert.deepEqual(panel('file:///Users/me/x.offline.html', { bundled: '<script data-src="js/deck.js" data-from="deckmd"></script>' }).cmds, [], 'a bundle: no help');
+  assert.deepEqual(panel('file:///Users/me/x.offline.html', { bundled: '<script type="text/markdown">\n## x\n</script><script data-src="js/deck.js" data-from="deckmd"></script>' }).cmds, [], 'a bundle: no help');
+  assert.deepEqual(panel('file:///Users/me/x/index.html', { bundled: '<script data-src="js/deck.js" data-from="deckmd"></script>', here: 'file:///Users/me/x/' }).cmds.slice(1),
+    ['npx deckmd serve', 'python3 -m http.server'], "an unpacked zip (deckmd inside, the Markdown a file): help, with npx (it has no deckmd folder)");
   assert.deepEqual(panel('http://localhost:8000/?src=a.md').cmds, [], 'served: no help');
   // Copy: the clipboard API when there is one, and the button says so
   p = panel('file:///Users/me/t/index.html');
