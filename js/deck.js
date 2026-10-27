@@ -39,7 +39,7 @@
 
   // ── API for plugins ─────────────────────────────────────────────
   const DeckMD = window.DeckMD = {
-    version: '0.4.1',  // same as package.json (npm version bumps both, a test checks). Informational: plugins should check whether a feature exists
+    version: '0.5.0',  // same as package.json (npm version bumps both, a test checks). Informational: plugins should check whether a feature exists
     config: {},        // front matter
     md: null,          // markdown-it instance (plugins may call md.use(...))
     fences: {},        // code block language → (code, attrs, token) => HTML
