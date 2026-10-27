@@ -136,7 +136,10 @@
     const page = text.replace(/<!--[\s\S]*?-->/g, '');
     if (!/<script\b[^>]*\ssrc\s*=\s*["'][^"']*\b(?:boot|deck)\.js\b/i.test(page) || /\/_deckmd\//.test(page)) return null;
     if (/<section\b|type\s*=\s*["']text\/markdown|id\s*=\s*["']deck-meta/i.test(page)) return null;
-    return { path: decodeURIComponent(new URL(url).pathname.split('/').pop()) || 'index.html', text };
+    const name = new URL(url).pathname.split('/').pop();
+    let path;
+    try { path = decodeURIComponent(name); } catch { path = name; }   // a stray % in the file name is not an escape
+    return { path: path || 'index.html', text };
   }
 
   async function pack(mode, say) {

@@ -19,6 +19,8 @@
     return out.length ? out.join('/') : null;
   }
   const bytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  // A stray % (a file really named a%zz.png) is not an escape: kept as written instead of failing the whole unpack
+  const decode = (f, s) => { try { return f(s); } catch { return s; } };
 
   // → { files: Map(path → string | Uint8Array), md: the Markdown's path, launcher: the launcher page's path if the bundle kept it,
   //     skipped: [library and deckmd keys], kept: [CSS files that still hold data: URIs] }
@@ -47,7 +49,7 @@
       for (const [ref, uri] of Object.entries(JSON.parse(table))) {
         const m = /^data:[^;,]*(;base64)?,(.*)$/s.exec(uri);
         if (!m) continue;
-        found.push([ref.startsWith('/') ? ref : mdDir + decodeURI(ref), m[1] ? bytes(m[2]) : decodeURIComponent(m[2])]);
+        found.push([ref.startsWith('/') ? ref : mdDir + decode(decodeURI, ref), m[1] ? bytes(m[2]) : decode(decodeURIComponent, m[2])]);
       }
     }
     if (!found.length) throw new Error('no user files to extract (is this a file packed with deckmd?)');
@@ -87,6 +89,8 @@
   }
 
   // A zip without compression ("stored"): headers, the bytes as they are, and the directory at the end. Names are UTF-8 (flag bit 11).
+  // Fields not written stay 0 (an ArrayBuffer starts zero-filled), which is what they should be: method 0 = stored, no extra field,
+  // no comment, disk 0, no file attributes ("version made by" 0 = MS-DOS, the plainest).
   const CRC = new Uint32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; return c; });
   const crc32 = b => { let c = ~0; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8); return ~c >>> 0; };
   function zip(files, date = new Date()) {

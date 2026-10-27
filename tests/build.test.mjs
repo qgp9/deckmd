@@ -1433,6 +1433,10 @@ test('unpack: a bundle with a file above the launcher page is refused as a whole
     assert.match(r.err, /outside the launcher page's folder/, what);
     assert.ok(!fs.existsSync(dir), `${what}: nothing is written`);
   }
+  // A stray % in an image name is not an escape: kept as written, not an error
+  const odd = DeckUnpack.split(`${md}<script type="application/json" id="deck-assets">{"img/50%off.svg":"data:image/svg+xml,%3Csvg%2F%3E%zz"}</script>`);
+  assert.deepEqual([...odd.files.keys()].sort(), ['talks/t1/img/50%off.svg', 'talks/t1/talk.md']);
+  assert.equal(odd.files.get('talks/t1/img/50%off.svg'), '%3Csvg%2F%3E%zz', 'a data URI that does not decode is kept as it is');
   // Going up and coming back down stays inside
   const ok = DeckUnpack.split(`${md}<script type="application/json" id="deck-assets">{"../../img/a.svg":"data:image/svg+xml,%3Csvg%2F%3E"}</script>`);
   assert.deepEqual([...ok.files.keys()].sort(), ['img/a.svg', 'talks/t1/talk.md']);
