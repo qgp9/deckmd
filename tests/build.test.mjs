@@ -1442,6 +1442,7 @@ test('unpack: a bundle with a file above the launcher page is refused as a whole
   assert.deepEqual([[...lp.files.keys()], lp.launcher], [['talks/t1/talk.md'], null]);
   assert.throws(() => DeckUnpack.split(`${md}<script type="application/json" id="deck-assets">{"a.svg":"data:image/svg+xml;base64,@@@"}</script>`), /the image a\.svg in this bundle is broken/);
   assert.throws(() => DeckUnpack.split(`${md}<script type="application/json" id="deck-assets">{"a.svg":</script>`), /image table \(deck-assets\) of this bundle is broken/);
+  assert.throws(() => DeckUnpack.split(`${md}<script type="application/json" id="deck-assets">{"a.svg":"img/a.svg"}</script>`), /the image a\.svg in this bundle is broken \(not a data: URI\)/);
   // Going up and coming back down stays inside
   const ok = DeckUnpack.split(`${md}<script type="application/json" id="deck-assets">{"../../img/a.svg":"data:image/svg+xml,%3Csvg%2F%3E"}</script>`);
   assert.deepEqual([...ok.files.keys()].sort(), ['img/a.svg', 'talks/t1/talk.md']);

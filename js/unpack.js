@@ -52,7 +52,7 @@
       try { list = Object.entries(JSON.parse(table)); } catch (e) { throw new Error(`the image table (deck-assets) of this bundle is broken: ${e.message}`); }
       for (const [ref, uri] of list) {
         const m = /^data:[^;,]*(;base64)?,(.*)$/s.exec(uri);
-        if (!m) continue;
+        if (!m) throw new Error(`the image ${ref} in this bundle is broken (not a data: URI)`);   // pack.js only writes data: URIs
         let data;
         try { data = m[1] ? bytes(m[2]) : decode(decodeURIComponent, m[2]); } catch { throw new Error(`the image ${ref} in this bundle is broken (its base64 data does not decode)`); }
         found.push([ref.startsWith('/') ? ref : mdDir + decode(decodeURI, ref), data]);
