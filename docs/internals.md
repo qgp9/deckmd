@@ -14,6 +14,7 @@ js/
   deck.js               loader: Markdown → slides → reveal.js
   notices.js            list of library and font licenses written at the top of a bundled file
   pack.js               deckmd helper (E key): modes, view options, PDF printing, packing into one file
+  unpack.js             splits a bundle back into the user's files, and writes a stored zip (the E key's zip downloads and build.mjs --unpack)
   md-spans.js           markdown-it-bracketed-spans wrapped for the browser ([text]{.class})
 css/base.css            shared rules (.cols .card .chapter … and the variable list). Always loaded first, regardless of theme
 themes/<name>/<name>.css  themes: ember (default), catppuccin, solarized
@@ -45,7 +46,7 @@ The npm package contains only the runtime (`js/ css/ themes/ plugins/`), `templa
 ## Load order
 
 1. The **launcher page** has a single `<script src="…/js/boot.js">`.
-2. **boot.js**: inserts the files in its list (`LIST`) into the page in order — config (`deck.config.js`), reveal.js and its CSS, fonts, plugins (notes, highlight), markdown-it and its plugins, js-yaml, `defaults.js`, `notices.js`, `pack.js`, `deck.js`. Libraries use CDN URLs (with `data-local`, the same path under `vendor/`); our own files are relative to `boot.js`'s own URL. If the launcher page already has a tag with the same name, it is skipped. The final `deck.js` waits until all CSS is loaded.
+2. **boot.js**: inserts the files in its list (`LIST`) into the page in order — config (`deck.config.js`), reveal.js and its CSS, fonts, plugins (notes, highlight), markdown-it and its plugins, js-yaml, `defaults.js`, `notices.js`, `pack.js`, `unpack.js`, `deck.js`. Libraries use CDN URLs (with `data-local`, the same path under `vendor/`); our own files are relative to `boot.js`'s own URL. If the launcher page already has a tag with the same name, it is skipped. The final `deck.js` waits until all CSS is loaded.
 3. **deck.js**: merges the config (`defaults.js` ← `deck.config.js` ← front matter ← URL), reads the Markdown (fetch with a server, a file picker without one, the embedded copy in a bundled file), loads the theme, CSS and plugins, splits the Markdown into slides (the splitters carry line numbers, which `DeckMD.slideInfo` keeps so a tool can say where a slide is in the file) and renders them with markdown-it (remembering each slide's Markdown in `DeckMD.sources` and the front matter in `DeckMD.frontMatter`, which the source plugin shows), runs plugin post-processing, then calls `Reveal.initialize`. `DeckMD.setSource` goes through the same parse, build and post-processing steps again to show new text without a reload (an editor's live preview).
 4. **pack.js**: the E key panel. When packing, it gathers what deck.js recorded (the initial tags `DeckMD.staticTags`, the loaded theme, CSS and plugins `DeckMD.loaded`, the Markdown source, images) and builds a single HTML file.
 
@@ -66,12 +67,12 @@ The npm package contains only the runtime (`js/ css/ themes/ plugins/`), `templa
 ```
 
 - `data-src` is the key deck.js uses to recognize "already embedded, don't load again".
-- `data-from`, `data-file` and `data-path` are used by unpacking (`build.mjs --unpack`). Files under boot.js (deckmd, or `…/deckmd@version/` on the CDN) are deckmd's own.
+- `data-from`, `data-file` and `data-path` are used by unpacking (`unpack.js`: the E key's zip and `build.mjs --unpack`), and so is `#deck-launcher`: the launcher page the bundle was packed from, as a JSON string (a page holds `<!--` and `<script`, which change how a script element is read). `data-loaded` marks what deck.js loaded (config and front matter files): a zip's `index.html` leaves those to deck.js and points the launcher page's own user files at their files. In a page with deckmd inside (a bundle, a zip's `index.html`), files read from disk when packing are always the user's. Files under boot.js (deckmd, or `…/deckmd@version/` on the CDN) are deckmd's own.
 - A share bundle keeps libraries as `<link href>` and `<script src>` (CDN).
 
 ## Tools
 
-- **build.mjs**: opens the launcher page in jsdom (files = disk, libraries = `vendor/` or the internet) and calls `DeckPack.pack(mode)`. It only fills in what jsdom lacks: `fetch`, `matchMedia`, `ResizeObserver`. Unpacking (`--unpack`) works on strings, without jsdom.
+- **build.mjs**: opens the launcher page in jsdom (files = disk, libraries = `vendor/` or the internet) and calls `DeckPack.pack(mode)`. It only fills in what jsdom lacks: `fetch`, `matchMedia`, `ResizeObserver`. Unpacking (`--unpack`) runs `js/unpack.js` on the file's text, without jsdom.
 - **localize.mjs**: downloads the CDN URLs in the `boot.js` list, reveal.js's built-in themes, the libraries plugins declare with `DeckMD.register` (found by `libs.mjs`), and the license texts (`notices.js`) into `vendor/<URL as is>`. It also follows `url(…)` inside CSS (fonts). Paths are derived directly from URLs, so `data-local` finds them by the same rule.
 - **release.mjs**: offline zip (committed files + `vendor/` + a `data-local` sample). Distribution is on hold.
 - **serve.sh / serve.cmd, ps1**: static file server (the node and php fallbacks also serve directory listings, so the deck list `scan` works). **serve.cmd and ps1 (Windows) have not been tested on Windows yet** (macOS has no PowerShell, so they were never run). To test: a window opens and shows the URL, it moves to the next port when the port is in use, directory listing for a folder without `index.html` (`scan`), Ctrl+C stops it.

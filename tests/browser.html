@@ -293,9 +293,9 @@ const CASES = [
     check: d => (!(d.querySelector('img[alt="present"]')?.src.startsWith('data:') && d.querySelector('section[data-background-image^="data:"]')) ? 'image and background as data:'
       : d.querySelectorAll('section[data-background-video^="blob:"]').length !== 2 ? 'both video backgrounds as blob: (reveal.js splits data: at commas)' : true) },
   { group: 'bundled', name: 'non-ASCII and space in path', url: `${OUT}${encodeURI('ünïcode dir/résult file.html')}`, slides: 4, ext: 0, built: true },
-  { group: 'E key', name: 'pack offline', pack: 'offline', url: `${R}?src=examples/grid/talk.md`, slides: 11, notes: 2, ext: 0, font: true },
-  { group: 'E key', name: 'pack share', pack: 'share', url: `${R}?src=examples/grid/talk.md`, slides: 11, notes: 2, font: true },
-  { group: 'E key', name: 'bundled file again as share', pack: 'share', url: `${OUT}grid.offline.html`, slides: 11, built: true },
+  { group: 'E key', name: 'pack offline (keeps the launcher page)', pack: 'offline', url: `${R}?src=examples/grid/talk.md`, slides: 11, notes: 2, ext: 0, font: true, check: launcherCheck },
+  { group: 'E key', name: 'pack share (keeps the launcher page)', pack: 'share', url: `${R}?src=examples/grid/talk.md`, slides: 11, notes: 2, font: true, check: launcherCheck },
+  { group: 'E key', name: 'bundled file again as share (passes the launcher page on)', pack: 'share', url: `${OUT}grid.offline.html`, slides: 11, built: true, check: launcherCheck },
 ];
 
 const stage = document.getElementById('stage');
@@ -328,6 +328,12 @@ function measure(f) {
   };
 }
 
+// The launcher page kept in a bundle for unpacking (a JSON string, read back by unpack.js)
+function launcherCheck(d) {
+  try { return /js\/boot\.js/.test(JSON.parse(d.getElementById('deck-launcher').textContent)) || 'launcher page kept, but not the one with boot.js'; }
+  catch { return 'launcher page kept (#deck-launcher)'; }
+}
+
 function judge(c, m, d) {
   const why = [];
   for (const k of ['slides', 'notes', 'ext']) if (c[k] != null && m[k] !== c[k]) why.push(`${k} ${m[k]} (expected ${c[k]})`);
@@ -349,7 +355,7 @@ function row(c, status, seen) {
 
 (async () => {
   // Refetch the cache so the changed code is tested right away (the iframes use the cache)
-  for (const f of ['js/boot.js', 'js/defaults.js', 'js/deck.js', 'js/notices.js', 'js/pack.js', 'js/md-spans.js', 'css/base.css', 'themes/ember/ember.css', 'plugins/grid/grid.js', 'plugins/grid/grid.css', 'deck.config.js']) {
+  for (const f of ['js/boot.js', 'js/defaults.js', 'js/deck.js', 'js/notices.js', 'js/pack.js', 'js/unpack.js', 'js/md-spans.js', 'css/base.css', 'themes/ember/ember.css', 'plugins/grid/grid.js', 'plugins/grid/grid.css', 'deck.config.js']) {
     await fetch(R + f, { cache: 'reload' }).catch(() => {});
   }
   for (const c of CASES) {

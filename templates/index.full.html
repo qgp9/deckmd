@@ -1,7 +1,7 @@
 <!doctype html>
 <!--
   The same launcher page as templates/index.html, with every tag written out instead of boot.js (assumes deckmd is in the repository's deckmd/ folder).
-  Order matters: deck.config.js → reveal → Markdown libraries → defaults.js → libs.js → notices.js, pack.js → deck.js (the order of the list in js/boot.js).
+  Order matters: deck.config.js → reveal → Markdown libraries → defaults.js → libs.js → notices.js, pack.js, unpack.js → deck.js (the order of the list in js/boot.js).
   To work offline, download with node deckmd/tools/localize.mjs, then change https:// to deckmd/vendor/
   (https://cdn.jsdelivr.net/npm/… → deckmd/vendor/cdn.jsdelivr.net/npm/…).
 -->
@@ -30,6 +30,7 @@
   <script src="deckmd/js/libs.js"></script>
   <script src="deckmd/js/notices.js"></script>
   <script src="deckmd/js/pack.js"></script>
+  <script src="deckmd/js/unpack.js"></script>
   <script src="deckmd/js/deck.js"></script>
 </body>
 </html>
