@@ -1584,6 +1584,11 @@ test('serve and pack: a deck named through a symbolic link to the current folder
   const r = build([path.join(link, 'deck/x.md'), '--share', '-o', out, '--force'], cwd);
   assert.ok(r.ok, r.err);
   assert.match(fs.readFileSync(out, 'utf8'), /<title>Linked<\/title>/);
+  // placeIn() itself, with either spelling of the base
+  const { placeIn } = await import(pathToFileURL(path.join(ROOT, 'tools/project.mjs')).href);
+  assert.equal(placeIn(path.join(link, 'deck/x.md'), cwd), path.join(cwd, 'x.md'));
+  assert.equal(placeIn(path.join(real, 'deck/x.md'), path.join(link, 'deck')), path.join(cwd, 'x.md'), 'a base through the link works too');
+  assert.equal(placeIn(path.join(link, 'outside.md'), path.join(link, 'deck')), null);
   // Still refused: a deck that really is outside the current folder, written through the link or not
   for (const f of [path.join(link, 'outside.md'), path.join(real, 'outside.md')]) {
     const s = build(['serve', f, '--port', '0'], cwd);

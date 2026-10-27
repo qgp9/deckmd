@@ -66,7 +66,8 @@ export const isInside = (child, base) => { const r = path.relative(base, child);
 export const realDir = (file) => { try { return fs.realpathSync(path.dirname(file)); } catch { return path.dirname(file); } };
 export function placeIn(file, base) {
   if (isInside(file, base)) return file;
-  try { const f = path.join(fs.realpathSync(path.dirname(file)), path.basename(file)); return isInside(f, base) ? f : null; } catch { return null; }
+  // Both sides real here, so it holds whichever spelling the caller's base has (today it is always real: process.cwd(), findProject())
+  try { const f = path.join(fs.realpathSync(path.dirname(file)), path.basename(file)); return isInside(f, fs.realpathSync(base)) ? f : null; } catch { return null; }
 }
 
 // What to tell someone when no project was found
