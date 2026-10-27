@@ -18,7 +18,7 @@ import path from 'node:path';
 import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { findProject, isInside, within, tooWide, shq, NOT_FOUND } from './project.mjs';
+import { findProject, placeIn, realDir, within, tooWide, shq, NOT_FOUND } from './project.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const USAGE = (lines => lines.slice(1, lines.findIndex(l => !l.startsWith('//'))).map(l => l.replace(/^\/\/ ?/, '')).join('\n'))(   // the top comment
@@ -83,8 +83,10 @@ export async function serve(args) {
   }
   if (!tree && !files.length) die(`${NOT_FOUND}.\n  npx deckmd serve my-deck.md   show one deck (no project needed)\n  npx deckmd init                start a project here`);
   // The decks must be inside the project, or (without one) inside the current folder: the page is made at the top and only opens Markdown under it
-  for (const { file, given: g } of files) {
-    if (!isInside(file, top)) die(`${g} is outside ${tree ? `the deckmd project at ${top}` : 'the current folder'}: the launcher page is ${tree ? 'there' : 'here'} and only opens Markdown under it.\nRun it from the deck's folder:  cd ${shq(posix(path.relative(cwd, path.dirname(file))) || '.')} && npx deckmd serve ${shq(path.basename(file))}`);
+  for (const entry of files) {
+    const g = entry.given, placed = placeIn(entry.file, top);                                     // (a deck written through a link to this folder is inside)
+    if (!placed) die(`${g} is outside ${tree ? `the deckmd project at ${top}` : 'the current folder'}: the launcher page is ${tree ? 'there' : 'here'} and only opens Markdown under it.\nRun it from the deck's folder:  cd ${shq(posix(path.relative(cwd, realDir(entry.file))) || '.')} && npx deckmd serve ${shq(path.basename(entry.file))}`);
+    const file = entry.file = placed;
     if (hidden(file)) die(`${g} is in a dot folder or node_modules, which are never served`);
     if (!realInside(file)) die(`${g} is a symbolic link that leaves ${tree ? 'the deckmd project' : 'the current folder'}`);
   }

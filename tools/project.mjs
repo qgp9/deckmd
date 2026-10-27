@@ -58,5 +58,17 @@ export function nearestExisting(p) {
 // Is `child` the same as or inside `base` (written paths, both absolute)? Like deck.js does for ?src: by the path as written, no realpath
 export const isInside = (child, base) => { const r = path.relative(base, child); return r === '' || (!r.startsWith('..') && !path.isAbsolute(r)); };
 
+// A deck file as `base` sees it, or null if it is outside. `base` comes from process.cwd() or findProject(), which give real paths, while a
+// deck may be written through a link to that same folder (macOS /tmp → /private/tmp, a shell's $PWD, -C "$(dirname …)"). So: the path as
+// written if it is inside, otherwise the same file through its folder's real path. The file keeps its own name: if it is itself a link that
+// leaves the folder, the callers' real-path checks still catch it. Nothing outside becomes inside: only the spelling of the folder changes.
+// The folder of a file, really (for a "cd here" hint that is short and works): the written one if it can't be resolved
+export const realDir = (file) => { try { return fs.realpathSync(path.dirname(file)); } catch { return path.dirname(file); } };
+export function placeIn(file, base) {
+  if (isInside(file, base)) return file;
+  // Both sides real here, so it holds whichever spelling the caller's base has (today it is always real: process.cwd(), findProject())
+  try { const f = path.join(fs.realpathSync(path.dirname(file)), path.basename(file)); return isInside(f, fs.realpathSync(base)) ? f : null; } catch { return null; }
+}
+
 // What to tell someone when no project was found
 export const NOT_FOUND = `no deckmd project here or in the ${MAX_UP} folders above (what marks one is a deckmd index.html: a page that loads boot.js and has no slides written in it)`;

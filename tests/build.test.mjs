@@ -1568,3 +1568,33 @@ test('E panel: opened as a file, a project deck says how to serve its folder (a 
   assert.equal(b2.textContent, 'Select ⌘/Ctrl+C');
   assert.equal(p.window.getSelection().toString(), "cd '/Users/me/t'");
 });
+
+test('serve and pack: a deck named through a symbolic link to the current folder is inside it (macOS /tmp → /private/tmp)', async () => {
+  // process.cwd() is always the real path, so a deck written through a link (as a shell's $PWD or a -C "$(dirname …)" gives it) used to be "outside"
+  const real = path.join(SANDBOX, 'symreal'), link = path.join(SANDBOX, 'symlink');
+  fs.mkdirSync(path.join(real, 'deck'), { recursive: true });
+  fs.writeFileSync(path.join(real, 'deck/x.md'), '---\ntitle: Linked\n---\n\n## x\n');
+  fs.writeFileSync(path.join(real, 'outside.md'), '## outside\n');
+  fs.symlinkSync(real, link, 'junction');
+  const cwd = path.join(real, 'deck');
+  await withServe([path.join(link, 'deck/x.md')], cwd, async (base) => {
+    assert.equal((await get(`${base}x.md`)).status, 200, 'served');
+  });
+  const out = path.join(SANDBOX, 'symlink-x.share.html');
+  const r = build([path.join(link, 'deck/x.md'), '--share', '-o', out, '--force'], cwd);
+  assert.ok(r.ok, r.err);
+  assert.match(fs.readFileSync(out, 'utf8'), /<title>Linked<\/title>/);
+  // placeIn() itself, with either spelling of the base
+  const { placeIn } = await import(pathToFileURL(path.join(ROOT, 'tools/project.mjs')).href);
+  assert.equal(placeIn(path.join(link, 'deck/x.md'), cwd), path.join(cwd, 'x.md'));
+  assert.equal(placeIn(path.join(real, 'deck/x.md'), path.join(link, 'deck')), path.join(cwd, 'x.md'), 'a base through the link works too');
+  assert.equal(placeIn(path.join(link, 'outside.md'), path.join(link, 'deck')), null);
+  // Still refused: a deck that really is outside the current folder, written through the link or not
+  for (const f of [path.join(link, 'outside.md'), path.join(real, 'outside.md')]) {
+    const s = build(['serve', f, '--port', '0'], cwd);
+    assert.ok(!s.ok, f);
+    assert.match(s.err, /is outside the current folder/, f);
+    assert.match(s.err, /cd \.\. && npx deckmd serve outside\.md/, `${f}: the cd hint is short, through the real folder`);
+    assert.ok(!build([f, '-o', out, '--force'], cwd).ok, `pack ${f}`);
+  }
+});
