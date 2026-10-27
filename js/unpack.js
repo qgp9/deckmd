@@ -77,14 +77,16 @@
   function folder(html) {
     const { files, md, launcher } = split(html);
     const out = new Map([...files].filter(([p]) => p !== launcher));
-    const at = s => encodeURI(s).replace(/"/g, '%22');
+    // A path as a URL, segment by segment: encodeURI would leave # and ? (a file named a#b.css would point at a, with a fragment)
+    const at = s => s.split('/').map(encodeURIComponent).join('/');
     let page = html.replace(/<(style|script)\b([^>]*)>([\s\S]*?)<\/\1>/g, (all, tag, attrText) => {
       const a = attrs(attrText);
       if (a.type === 'text/markdown' || a.id === 'deck-assets') return '';
       if (!a['data-src'] || a['data-from'] === 'deckmd' || /^https?:/.test(a['data-src'])) return all;
       if ('data-loaded' in a) return '';
-      const p = at(inside(a['data-file'] || a['data-src']));
-      return tag === 'style' ? `<link rel="stylesheet" href="${p}" data-src="${p}" data-file="${p}">` : `<script src="${p}" data-src="${p}" data-file="${p}"></script>`;
+      const f = inside(a['data-file'] || a['data-src']), p = at(f);
+      const file = f.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));   // the name as it is (packing it again keeps it)
+      return tag === 'style' ? `<link rel="stylesheet" href="${p}" data-src="${p}" data-file="${file}">` : `<script src="${p}" data-src="${p}" data-file="${file}"></script>`;
     });
     // Which deck to open: this one, whatever the config says (it is the only deck in the zip). Right before deck.js, after the config
     const open = `<script>window.DeckConfig = Object.assign(window.DeckConfig || {}, { home: 'deck', src: ${JSON.stringify(md).replace(/</g, '\\u003c')} });</script>\n`;

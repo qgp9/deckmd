@@ -1443,6 +1443,10 @@ test('unpack: a bundle with a file above the launcher page is refused as a whole
   assert.throws(() => DeckUnpack.split(`${md}<script type="application/json" id="deck-assets">{"a.svg":"data:image/svg+xml;base64,@@@"}</script>`), /the image a\.svg in this bundle is broken/);
   assert.throws(() => DeckUnpack.split(`${md}<script type="application/json" id="deck-assets">{"a.svg":</script>`), /image table \(deck-assets\) of this bundle is broken/);
   assert.throws(() => DeckUnpack.split(`${md}<script type="application/json" id="deck-assets">{"a.svg":"img/a.svg"}</script>`), /the image a\.svg in this bundle is broken \(not a data: URI\)/);
+  // A file of the launcher page with # ? or a space in its name: its tag in the zip's index.html points at that file
+  const named = DeckUnpack.folder(`${md}<style data-src="st#y le?.css" data-file="st#y le?.css">h2{}</style>`);
+  assert.ok(named.has('st#y le?.css'));
+  assert.match(named.get('index.html'), /<link rel="stylesheet" href="st%23y%20le%3F\.css" data-src="st%23y%20le%3F\.css" data-file="st#y le\?\.css">/, 'the URL encoded, the name as it is');
   // Going up and coming back down stays inside
   const ok = DeckUnpack.split(`${md}<script type="application/json" id="deck-assets">{"../../img/a.svg":"data:image/svg+xml,%3Csvg%2F%3E"}</script>`);
   assert.deepEqual([...ok.files.keys()].sort(), ['img/a.svg', 'talks/t1/talk.md']);
