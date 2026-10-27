@@ -36,7 +36,8 @@
       const text = unsafe(m[3]).replace(/^\n/, '').replace(/\n$/, '');
       if (a.type === 'text/markdown') { mdPath = a['data-path'] || 'talk.md'; found.push([mdPath, text.endsWith('\n') ? text : `${text}\n`]); continue; }
       if (a.id === 'deck-assets') { table = text; continue; }
-      if (a.id === 'deck-launcher') { launcher = a['data-path'] || 'index.html'; found.push([launcher, JSON.parse(text)]); continue; }
+      // The launcher page is an extra: a copy that doesn't read (a bundle edited by hand) is left out rather than failing the unpack
+      if (a.id === 'deck-launcher') { try { found.push([a['data-path'] || 'index.html', JSON.parse(text)]); launcher = a['data-path'] || 'index.html'; } catch {} continue; }
       if (a.id === 'deck-meta') throw new Error('bundled files of pages with slides written directly (HTML decks) cannot be unpacked yet');
       if (!a['data-src']) continue;
       if (a['data-from'] === 'deckmd' || /^https?:/.test(a['data-src'])) { skipped.push(a['data-src']); continue; }
@@ -46,10 +47,15 @@
     }
     if (table) {
       const md = mdPath || 'talk.md', mdDir = md.includes('/') ? md.slice(0, md.lastIndexOf('/') + 1) : '';
-      for (const [ref, uri] of Object.entries(JSON.parse(table))) {
+      // The deck's images are not extras: a broken table or entry is an error that names it (a zip without them would be wrong)
+      let list;
+      try { list = Object.entries(JSON.parse(table)); } catch (e) { throw new Error(`the image table (deck-assets) of this bundle is broken: ${e.message}`); }
+      for (const [ref, uri] of list) {
         const m = /^data:[^;,]*(;base64)?,(.*)$/s.exec(uri);
         if (!m) continue;
-        found.push([ref.startsWith('/') ? ref : mdDir + decode(decodeURI, ref), m[1] ? bytes(m[2]) : decode(decodeURIComponent, m[2])]);
+        let data;
+        try { data = m[1] ? bytes(m[2]) : decode(decodeURIComponent, m[2]); } catch { throw new Error(`the image ${ref} in this bundle is broken (its base64 data does not decode)`); }
+        found.push([ref.startsWith('/') ? ref : mdDir + decode(decodeURI, ref), data]);
       }
     }
     if (!found.length) throw new Error('no user files to extract (is this a file packed with deckmd?)');
