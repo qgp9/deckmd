@@ -21,9 +21,13 @@ export const shq = s => /^[\w@%+=:,./-]+$/.test(s) ? s : `'${String(s).replace(/
 
 // Is this HTML a deckmd launcher page? It loads boot.js (or deck.js) and has no slides inside it: a page with <section>s written in it, a Markdown
 // or deck-meta script (a deck of its own, or a bundled deck) is a deck, not the launcher of a project. Another site's index.html loads neither.
+// The index.html of an unpacked zip counts too: deckmd is inside it (deck.js as packing writes it), but the Markdown is a file next to it.
 export function isLauncher(html) {
-  const page = String(html).replace(/<!--[\s\S]*?-->/g, '');                                                          // not the comments about it
-  const loadsDeckmd = /<script\b[^>]*\ssrc\s*=\s*["'](?:[^"']*\/)?(?:boot|deck)\.js(?:[?#][^"']*)?["']/i.test(page);
+  // Tags only: the text inside script and style elements goes first (inlined deckmd holds strings like type="text/markdown" and <!--),
+  // then the comments about the page
+  const page = String(html).replace(/(<(script|style)\b[^>]*>)[\s\S]*?(<\/\2>)/gi, '$1$3').replace(/<!--[\s\S]*?-->/g, '');
+  const loadsDeckmd = /<script\b[^>]*\ssrc\s*=\s*["'](?:[^"']*\/)?(?:boot|deck)\.js(?:[?#][^"']*)?["']/i.test(page)
+    || /<script\b(?=[^>]*\sdata-src="js\/deck\.js")(?=[^>]*\sdata-from="deckmd")[^>]*>/i.test(page);
   const hasDeckInside = /<section\b/i.test(page) || /<script\b[^>]*\stype\s*=\s*["']text\/markdown["']/i.test(page) || /<script\b[^>]*\sid\s*=\s*["']deck-meta["']/i.test(page);
   return loadsDeckmd && !hasDeckInside;
 }

@@ -261,6 +261,60 @@ ${tail.join('\n')}
       <h4>Print / PDF <span>opens in a new tab, then ⌘/Ctrl+P → Save as PDF</span></h4><div class="md"><button data-p="">Slides only</button><button data-p="separate-page">With notes</button></div>`;
   }
 
+  // Opened as a file (file://), a deck can be viewed (after picking the Markdown) but not packed: the browser keeps the page from
+  // reading the files next to it. serveHelp() says how to serve this folder instead, with the commands filled in and a copy button
+  // each. Shown in the E panel and on deck.js's pick screen; '' when served, or for a bundle (everything is inside it, so it packs).
+  function serveHelp(title, why) {
+    // A bundle has deckmd and the deck inside. The index.html of an unpacked zip has deckmd inside but the deck in files: it needs this
+    const inside = document.querySelector('script[data-from="deckmd"][data-src="js/deck.js"]');
+    if (location.protocol !== 'file:' || (inside && document.querySelector('script[type="text/markdown"], #deck-meta'))) return '';
+    let dir = location.pathname.replace(/[^/]*$/, '');
+    try { dir = decodeURIComponent(dir); } catch {}                   // a stray % in a folder name is not an escape
+    const page = location.pathname.split('/').pop();
+    // Windows: file:///C:/talks/ → C:\talks, and a network share file://server/talks/ → \\server\talks (cmd.exe can't cd there: pushd)
+    const unc = !!location.host, win = unc || /^\/[A-Za-z]:\//.test(dir);
+    dir = unc ? `\\\\${location.host}${dir.slice(0, -1).replace(/\//g, '\\')}`
+      : win ? dir.slice(1, -1).replace(/\//g, '\\') : dir.replace(/(.)\/$/, '$1');
+    // Quoted for the shell it will be pasted into: single quotes on macOS/Linux (nothing inside is special, so a $ or " stays as it is;
+    // a ' is written '\''), double quotes on Windows (cmd.exe expands nothing in them, and " can't be in a Windows name)
+    const quote = d => (win ? `"${d}"` : `'${d.replace(/'/g, "'\\''")}'`);
+    const url = `http://localhost:8000/${/^index\.html?$/i.test(page) ? '' : page}${location.search}`;
+    // One command per line, each with its own copy button: the servers are alternatives, and cmd.exe has no # comments
+    const cmd = c => `<div class="row"><code>${esc(c)}</code><button type="button" data-copy>Copy</button></div>`;
+    serveStyle();
+    return `<div class="deck-serve"><h4>${title} <span>${why}</span></h4>
+      <p>In a terminal, go to this folder:</p>${cmd(`${unc ? 'pushd' : 'cd'} ${quote(dir)}`)}
+      <p>then start one of these (Node, or Python):</p>${cmd('npx deckmd serve')}${cmd(`${win ? 'python' : 'python3'} -m http.server`)}
+      <p>and open <a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a> (or the address it prints).</p></div>`;
+  }
+  function serveStyle() {
+    if (document.getElementById('deck-serve-css')) return;
+    const css = document.createElement('style');
+    css.id = 'deck-serve-css';
+    css.textContent = `.deck-serve{text-align:left;margin:0 0 14px;font-size:13px;line-height:1.5;color:#8b96a8}.deck-serve h4{margin:0 0 4px;font-size:14px;color:#8b96a8;font-weight:600}.deck-serve h4 span{font-weight:400;font-size:12px;margin-left:6px}
+      .deck-serve p{margin:0 0 2px;word-break:break-all}.deck-serve a{color:#ffb454}.deck-serve .row{display:flex;gap:6px;align-items:stretch;margin:2px 0 6px}
+      .deck-serve code{flex:1;padding:6px 10px;border-radius:8px;background:#0e1117;border:1px solid #2c3544;color:#e9edf3;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;user-select:all}
+      .deck-serve .row button{flex:none;width:auto;margin:0;padding:4px 10px;border-radius:8px;border:1px solid #2c3544;background:#1f2632;color:#e9edf3;font:12px sans-serif;cursor:pointer}.deck-serve .row button:hover{border-color:#ffb454}`;
+    document.head.appendChild(css);
+  }
+  // Copy buttons (one listener for every help box). The clipboard API, or the old way where it is missing or refused
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest?.('.deck-serve .row button[data-copy]');
+    if (!b) return;
+    const code = b.previousElementSibling, text = code.textContent;
+    let ok = true;
+    try { await navigator.clipboard.writeText(text); } catch {
+      const t = Object.assign(document.createElement('textarea'), { value: text });
+      document.body.appendChild(t); t.select();
+      try { ok = document.execCommand('copy'); } catch { ok = false; }
+      t.remove();
+    }
+    // When neither works, leave the command selected to copy by hand
+    if (!ok) { const r = document.createRange(); r.selectNodeContents(code); getSelection().removeAllRanges(); getSelection().addRange(r); }
+    b.textContent = ok ? 'Copied' : 'Select ⌘/Ctrl+C';
+    setTimeout(() => { b.textContent = 'Copy'; }, 1200);
+  });
+
   let box = null;
   function close() { box?.remove(); box = null; }
   function open() {
@@ -271,6 +325,7 @@ ${tail.join('\n')}
       <h3>deckmd <span>helper</span></h3>
       ${modeSection()}
       ${viewSection()}
+      ${serveHelp('Packing needs a web server', 'opened as a file, the browser keeps this page from reading the files next to it')}
       <h4>Download: pack into one file</h4>
       <button data-m="offline"><b>Offline</b><small>Everything inside. Opens without internet, large</small></button>
       <button data-m="share"><b>Share</b><small>Libraries and fonts from the CDN. Small, needs internet</small></button>
@@ -319,7 +374,7 @@ ${tail.join('\n')}
         if (miss.length) console.warn('pack: files that could not be embedded', miss);
       } catch (e) {
         say(reading && location.protocol === 'file:'
-          ? `could not read (${e.message}). A deck opened without a server can't read separate files. Please open it through a web server.`
+          ? `could not read (${e.message}). A deck opened as a file can't read the files next to it: serve the folder (see above) and pack from there.`
           : `failed: ${e.message}`);
       }
       all.forEach(x => (x.disabled = false));
@@ -340,5 +395,5 @@ ${tail.join('\n')}
     if (e.key === 'e' || e.key === 'E') open();
   }, true);
 
-  window.DeckPack = { pack, open };
+  window.DeckPack = { pack, open, serveHelp };
 })();

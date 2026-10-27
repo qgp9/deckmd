@@ -676,7 +676,8 @@
           <p>${location.protocol === 'file:' ? 'Opened without a server. ' : ''}Please choose a Markdown file.<br>
           <small>Chrome and Edge remember it and redraw right away when you edit the file.</small></p>
           <button>${handle ? `Reopen: ${esc(handle.name)}` : 'Open Markdown file'}</button>
-          <p><small>or drop a file here</small></p></div>`;
+          <p><small>or drop a file here</small></p>
+          ${window.DeckPack?.serveHelp?.('Or serve this folder', 'then the deck opens by itself, without picking, and can be packed') || ''}</div>`;
         document.body.appendChild(box);
         const done = (text) => { box.remove(); resolve(text); };
         const fromFile = async (file) => { const t = await file.text(); sessionStorage.setItem(this.key, t); done(t); };
