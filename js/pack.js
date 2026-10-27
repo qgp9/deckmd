@@ -60,7 +60,10 @@
     if (el?.dataset.from) return ` data-from="${esc(el.dataset.from)}"`;
     if (el?.dataset.file) return ` data-file="${esc(el.dataset.file)}"`;
     if (!abs) return '';
-    const root = window.DeckMD?.here?.href;
+    // With deckmd itself inside the page (a bundle, or the index.html of a zip), "under boot.js" is just the page's folder:
+    // deckmd's files are all inside already, so whatever is read from a file is the user's
+    const inside = document.querySelector('script[data-from="deckmd"][data-src="js/deck.js"]');
+    const root = !inside && window.DeckMD?.here?.href;
     if (root && abs.startsWith(root)) return ' data-from="deckmd"';
     if (libUrl(abs)) return '';
     const f = pagePath(abs);
@@ -120,6 +123,22 @@
   const isExternal = r => /^([a-z]+:|\/\/)/i.test(r);
   const norm = v => { try { return decodeURI(v).replace(/^\.\//, ''); } catch { return v; } };
 
+  // The launcher page, kept in the bundle so unpacking can give it back (unpack.js). A bundle passes on the copy it carries; otherwise
+  // the page is read again from the server. Nothing is kept when it can't be read (file://) or isn't a launcher page of its own:
+  // a deck written inside the page, or the page npx deckmd serve makes up for decks without a project (deckmd under /_deckmd/).
+  async function launcherPage() {
+    const kept = document.getElementById('deck-launcher');
+    if (kept) { try { return { path: kept.dataset.path || 'index.html', text: JSON.parse(kept.textContent) }; } catch { return null; } }
+    if (document.querySelector('script[type="text/markdown"]')) return null;
+    const url = location.href.split(/[?#]/)[0];
+    let text;
+    try { text = await fetchText(url); } catch { return null; }
+    const page = text.replace(/<!--[\s\S]*?-->/g, '');
+    if (!/<script\b[^>]*\ssrc\s*=\s*["'][^"']*\b(?:boot|deck)\.js\b/i.test(page) || /\/_deckmd\//.test(page)) return null;
+    if (/<section\b|type\s*=\s*["']text\/markdown|id\s*=\s*["']deck-meta/i.test(page)) return null;
+    return { path: decodeURIComponent(new URL(url).pathname.split('/').pop()) || 'index.html', text };
+  }
+
   async function pack(mode, say) {
     const D = window.DeckMD;
     missing = [];
@@ -154,7 +173,8 @@
       say(`reading: ${r.key}`);
       const inPage = [...document.querySelectorAll('[data-src]')].find(el => el.dataset.src === r.key && !el.src && !el.href);
       const text = inPage ? inPage.textContent.replace(/^\n/, '').replace(/\n$/, '') : await fetchText(r.url);
-      const mark = origin(inPage ? null : r.url, inPage);
+      // data-loaded: deck.js loaded it (from the config or the front matter), so a zip leaves it to deck.js to load the file again
+      const mark = origin(inPage ? null : r.url, inPage) + ' data-loaded';
       if (r.as === 'css') head.push(`<style data-src="${esc(r.key)}"${mark}>\n${await packCss(text, r.url)}\n</style>`);
       else tail.push(`<script data-src="${esc(r.key)}"${mark}>\n${scriptSafe(text)}\n</script>`);
     }
@@ -178,6 +198,9 @@
       const mdPath = document.querySelector('script[type="text/markdown"]')?.dataset.path ?? pagePath(D.srcUrl.href);
       source = `<script type="text/markdown" data-base="./"${mdPath ? ` data-path="${esc(mdPath)}"` : ''}>\n${scriptSafe(D.source || '')}</script>\n`;
       if (Object.keys(assets).length) source += `<script type="application/json" id="deck-assets">${scriptSafe(JSON.stringify(assets))}</script>\n`;
+      const l = await launcherPage();
+      // As a JSON string with every < escaped: a page holds <!-- and <script, which would change how the browser reads a script element
+      if (l) source += `<script type="application/json" id="deck-launcher" data-path="${esc(l.path)}">${JSON.stringify(l.text).replace(/</g, '\\u003c')}</script>\n`;
     }
 
     const title = document.title || 'deck';
@@ -201,9 +224,9 @@ ${tail.join('\n')}
     return { html, title, missing: [...new Set(missing)], external };
   }
 
-  function download(html, name) {
+  function download(data, name, type = 'text/html') {
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    a.href = URL.createObjectURL(new Blob([data], { type }));
     a.download = name;
     document.body.appendChild(a);
     a.click();
@@ -239,6 +262,7 @@ ${tail.join('\n')}
   function close() { box?.remove(); box = null; }
   function open() {
     if (box || !window.DeckMD?.loaded) return;
+    const D = window.DeckMD;
     box = document.createElement('div');
     box.innerHTML = `<div class="pk">
       <h3>deckmd <span>helper</span></h3>
@@ -247,6 +271,9 @@ ${tail.join('\n')}
       <h4>Download: pack into one file</h4>
       <button data-m="offline"><b>Offline</b><small>Everything inside. Opens without internet, large</small></button>
       <button data-m="share"><b>Share</b><small>Libraries and fonts from the CDN. Small, needs internet</small></button>
+      ${window.DeckUnpack && D.pageSlidesHTML == null ? `<h4>Download: the same, with your files separate (zip)</h4><div class="md">
+        <button data-u="offline" title="Your Markdown, images, CSS and JS as files to edit; the rest as in Offline, inside index.html">Offline (zip)</button>
+        <button data-u="share" title="Your Markdown, images, CSS and JS as files to edit; the rest as in Share, inside index.html">Share (zip)</button></div>` : ''}
       <p class="st"></p><p class="hint">Esc to close</p></div>`;
     box.style.cssText = 'position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45)';
     const css = document.createElement('style');
@@ -271,23 +298,32 @@ ${tail.join('\n')}
         if (b.dataset.p) p.set('showNotes', b.dataset.p); else p.delete('showNotes');
       }).replace(/#.*$/, ''), '_blank');
     }));
-    box.querySelectorAll('button[data-m]').forEach(b => b.addEventListener('click', async () => {
-      const mode = b.dataset.m;
-      box.querySelectorAll('button[data-m]').forEach(x => (x.disabled = true));
+    // Every download packs first. A zip then takes the user's files back out of that bundle (unpack.js), so it is the same Offline or Share
+    // bundle with those files separate, whether the deck is a project on a server or an already bundled file.
+    const run = (b, mode, make) => b.addEventListener('click', async () => {
+      const all = box.querySelectorAll('button[data-m], button[data-u]');
+      all.forEach(x => (x.disabled = true));
+      // Only reading files can fail because of file://; an error from splitting (a path outside the folder) is said as it is
+      let reading = true;
       try {
         const { html, title, missing: miss } = await pack(mode, say);
+        reading = false;
         const base = (new URLSearchParams(location.search).get('src') || title).split('/').pop().replace(/\.(md|markdown|html?)$/i, '') || 'deck';
-        download(html, `${base}.${mode}.html`);
-        say(`downloaded: ${base}.${mode}.html (${Math.round(html.length / 1024)} KB)`
+        const [data, name, type] = make(html, base, title);
+        download(data, name, type);
+        say(`downloaded: ${name} (${Math.round(data.length / 1024)} KB)`
           + (miss.length ? ` · could not embed ${miss.length}: ${miss.join(', ')}` : ''));
         if (miss.length) console.warn('pack: files that could not be embedded', miss);
       } catch (e) {
-        say(location.protocol === 'file:'
+        say(reading && location.protocol === 'file:'
           ? `could not read (${e.message}). A deck opened without a server can't read separate files. Please open it through a web server.`
           : `failed: ${e.message}`);
       }
-      box?.querySelectorAll('button[data-m]').forEach(x => (x.disabled = false));
-    }));
+      all.forEach(x => (x.disabled = false));
+    });
+    box.querySelectorAll('button[data-m]').forEach(b => run(b, b.dataset.m, (html, base) => [html, `${base}.${b.dataset.m}.html`]));
+    box.querySelectorAll('button[data-u]').forEach(b => run(b, b.dataset.u, (html, base) =>
+      [window.DeckUnpack.zip(window.DeckUnpack.folder(html)), `${base}.${b.dataset.u}.zip`, 'application/zip']));
   }
 
   // Show in the shortcut list of the help (?) (registrations made before start don't seem to stick, so once more after start)

@@ -16,6 +16,9 @@ const OUT = path.join(ROOT, 'tests/out');
 const BUILD = path.join(ROOT, 'tools/build.mjs');
 // init, add and serve are tried outside this repository: it is itself a deckmd project (its index.html), so a folder under it is not "no project"
 const SANDBOX = path.join(fs.realpathSync(os.tmpdir()), `deckmd-tests-${process.pid}`);
+// js/unpack.js is a plain script shared with the browser; it defines globalThis.DeckUnpack
+await import(pathToFileURL(path.join(ROOT, 'js/unpack.js')).href);
+const { DeckUnpack } = globalThis;
 
 function build(args, cwd = ROOT) {
   const r = spawnSync(process.execPath, [BUILD, ...args], { cwd, encoding: 'utf8' });
@@ -1303,8 +1306,8 @@ test('unpack: only user files back to their places; packing again gives the same
   const got = [];
   const walk = d => fs.readdirSync(d, { withFileTypes: true }).forEach(e => (e.isDirectory() ? walk(path.join(d, e.name)) : got.push(path.relative(back, path.join(d, e.name)).split(path.sep).join('/'))));
   walk(back);
-  const want = ['deck.config.js', 'my.css', 'talks/t1/talk.md', 'talks/t1/talk.css', 'talks/t1/hello.js', 'talks/t1/hello.css', 'talks/t1/img/a.svg'];
-  assert.deepEqual(got.sort(), [...want].sort(), 'only user files (no deckmd files or libraries)');
+  const want = ['index.html', 'deck.config.js', 'my.css', 'talks/t1/talk.md', 'talks/t1/talk.css', 'talks/t1/hello.js', 'talks/t1/hello.css', 'talks/t1/img/a.svg'];
+  assert.deepEqual(got.sort(), [...want].sort(), 'only user files and the launcher page (no deckmd files or libraries)');
   for (const f of want) assert.equal(fs.readFileSync(path.join(back, f), 'utf8'), fs.readFileSync(path.join(repo, f), 'utf8'), f);
 
   assert.ok(!build([packed, '--unpack', '-o', back]).ok, 'error if it already exists');
@@ -1317,6 +1320,122 @@ test('unpack: only user files back to their places; packing again gives the same
   r = build(['talks/t1/talk.md', '-o', again, '--force'], back);
   assert.ok(r.ok, r.err);
   assert.equal(fs.readFileSync(again, 'utf8'), fs.readFileSync(packed, 'utf8'));
+
+  // The E key's zip splits with the same js/unpack.js: the zip holds the same files, byte for byte
+  const files = unzip(DeckUnpack.zip(DeckUnpack.split(fs.readFileSync(packed, 'utf8')).files));
+  assert.deepEqual([...files.keys()].sort(), [...want].sort());
+  for (const f of want) assert.deepEqual(files.get(f), fs.readFileSync(path.join(repo, f)), f);
+
+  // A bundle packed again (offline → share) passes on its launcher page
+  const reshare = path.join(SANDBOX, 'unpack.reshare.html');
+  r = build([packed, '--share', '-o', reshare, '--force']);
+  assert.ok(r.ok, r.err);
+  assert.equal(DeckUnpack.split(fs.readFileSync(reshare, 'utf8')).files.get('index.html'), fs.readFileSync(path.join(repo, 'index.html'), 'utf8'));
+
+  // Unpacking into a folder that already has an index.html (a project) leaves it as it is
+  fs.cpSync(back, path.join(SANDBOX, 'unpack-into'), { recursive: true, filter: f => !f.endsWith('/deckmd') });
+  fs.writeFileSync(path.join(SANDBOX, 'unpack-into/index.html'), 'mine\n');
+  fs.rmSync(path.join(SANDBOX, 'unpack-into/talks'), { recursive: true });
+  r = build([packed, '--unpack', '-o', path.join(SANDBOX, 'unpack-into')]);
+  assert.ok(!r.ok && /already exists: .*deck\.config\.js/.test(r.err) && !/already exists: .*index\.html/.test(r.err), 'an existing index.html is not a conflict');
+  fs.rmSync(path.join(SANDBOX, 'unpack-into/deck.config.js')); fs.rmSync(path.join(SANDBOX, 'unpack-into/my.css'));
+  r = build([packed, '--unpack', '-o', path.join(SANDBOX, 'unpack-into')]);
+  assert.ok(r.ok, r.err);
+  assert.match(r.out, /index\.html is already there/);
+  assert.equal(fs.readFileSync(path.join(SANDBOX, 'unpack-into/index.html'), 'utf8'), 'mine\n', 'and it is kept');
+
+  // The zip: the user's files, and an index.html that is the bundle without them (deckmd and libraries as they were in it)
+  for (const mode of ['offline', 'share']) {
+    const bundle = mode === 'offline' ? packed : path.join(SANDBOX, 'unpack.share.html');
+    if (mode === 'share') assert.ok(build(['talks/t1/talk.md', '--share', '-o', bundle, '--force'], repo).ok);
+    const html = fs.readFileSync(bundle, 'utf8');
+    const files = DeckUnpack.folder(html);
+    const user = want.filter(f => f !== 'index.html');
+    assert.deepEqual([...files.keys()].sort(), [...user, 'index.html'].sort(), `${mode}: the user's files and index.html (not the launcher page)`);
+    const page = files.get('index.html');
+    assert.doesNotMatch(tags(page), /<script type="text\/markdown"|<script type="application\/json" id="deck-assets"/, `${mode}: no Markdown or images inside`);
+    assert.deepEqual(tags(page).match(/<[^>]*\sdata-loaded[^>]*>/g).filter(t => !/data-from="deckmd"|data-src="https:/.test(t)), [], `${mode}: the user's files deck.js loads are left to it`);
+    assert.match(tags(page), /<script src="deck\.config\.js" data-src="deck\.config\.js" data-file="deck\.config\.js"><\/script>/, `${mode}: the launcher page's config, as a file`);
+    assert.match(page, /window\.DeckConfig = Object\.assign\(window\.DeckConfig \|\| \{\}, \{ home: 'deck', src: "talks\/t1\/talk\.md" \}\);<\/script>\n<script data-src="js\/deck\.js"/, `${mode}: opens this deck, set right before deck.js`);
+    assert.deepEqual(keys(page).filter(k => !user.includes(k)), keys(html).filter(k => !user.includes(k) && !/^(\.\/)?(talk|hello)\.(css|js)$/.test(k)), `${mode}: everything else as in the bundle`);
+    // Written out as a folder, index.html opens the deck from those files: packing that page gives the same deck and files back
+    const dir = path.join(SANDBOX, `zip-${mode}`);
+    for (const [f, data] of files) { fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true }); fs.writeFileSync(path.join(dir, f), data); }
+    const again = path.join(SANDBOX, `zip-${mode}.again.html`);
+    const r2 = build([path.join(dir, 'index.html'), `--${mode}`, '-o', again, '--force']);
+    assert.ok(r2.ok, r2.err);
+    const back2 = DeckUnpack.split(fs.readFileSync(again, 'utf8'));
+    assert.deepEqual([...back2.files.keys()].sort(), [...user, 'index.html'].sort(), `${mode}: the same files (and the launcher page it kept)`);
+    assert.equal(back2.files.get('index.html'), fs.readFileSync(path.join(repo, 'index.html'), 'utf8'), `${mode}: the launcher page passed on`);
+    for (const f of user) assert.deepEqual(Buffer.from(back2.files.get(f)), fs.readFileSync(path.join(repo, f)), `${mode}: ${f}`);
+    const sections = h => (tags(h).match(/<section\b/g) || []).length;
+    assert.equal(sections(fs.readFileSync(again, 'utf8')), sections(html), `${mode}: the same slides`);
+  }
+});
+
+// Read a stored (uncompressed) zip back: entries from the central directory, checked against the local headers and the CRC
+function unzip(z) {
+  const v = new DataView(z.buffer, z.byteOffset, z.byteLength), dec = new TextDecoder(), out = new Map();
+  const end = z.byteLength - 22;
+  assert.equal(v.getUint32(end, true), 0x06054b50, 'end of central directory');
+  let at = v.getUint32(end + 16, true);
+  for (let i = 0; i < v.getUint16(end + 10, true); i++) {
+    assert.equal(v.getUint32(at, true), 0x02014b50);
+    const crc = v.getUint32(at + 16, true), size = v.getUint32(at + 24, true), n = v.getUint16(at + 28, true), local = v.getUint32(at + 42, true);
+    const name = dec.decode(z.subarray(at + 46, at + 46 + n));
+    assert.equal(v.getUint32(local, true), 0x04034b50, name);
+    assert.equal(v.getUint16(local + 8, true), 0, `${name}: stored, not compressed`);
+    const start = local + 30 + v.getUint16(local + 26, true) + v.getUint16(local + 28, true);
+    const data = Buffer.from(z.subarray(start, start + size));
+    assert.equal(crc32(data), crc, `${name}: CRC`);
+    out.set(name, data);
+    at += 46 + n + v.getUint16(at + 30, true) + v.getUint16(at + 32, true);
+  }
+  return out;
+}
+function crc32(b) {
+  let c = ~0;
+  for (const x of b) { c ^= x; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; }
+  return ~c >>> 0;
+}
+
+test('unpack: a deck without images (the deck-assets tag that pack.js holds as a string is not taken for the real one)', () => {
+  const { html } = make('examples/grid/talk.md', 'grid-unpack.offline.html');
+  assert.match(html, /id="deck-assets">\$\{/, 'the embedded pack.js has the tag as a string');
+  assert.doesNotMatch(tags(html), /<script type="application\/json" id="deck-assets">/, 'and there is no real table');
+  assert.deepEqual([...DeckUnpack.split(html).files.keys()], ['examples/grid/talk.md', 'index.html']);
+});
+
+test('unpack: without a project, the page made up in memory is not kept as a launcher page', () => {
+  const dir = path.join(SANDBOX, 'no-project');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'x.md'), '## x\n');
+  const r = build(['x.md', '-o', 'x.share.html', '--share'], dir);
+  assert.ok(r.ok, r.err);
+  const split = DeckUnpack.split(fs.readFileSync(path.join(dir, 'x.share.html'), 'utf8'));
+  assert.equal(split.launcher, null);
+  assert.deepEqual([...split.files.keys()], ['x.md']);
+});
+
+test('unpack: a bundle with a file above the launcher page is refused as a whole (command line and zip)', () => {
+  const md = '<script type="text/markdown" data-base="./" data-path="talks/t1/talk.md">\n## x\n</script>\n';
+  const cases = [
+    ['a CSS file', `${md}<style data-src="../shared.css" data-file="../shared.css">h2{}</style>`, /\.\.\/shared\.css/],
+    ['the Markdown', '<script type="text/markdown" data-path="../talk.md">\n## x\n</script>', /\.\.\/talk\.md/],
+    ['an image', `${md}<script type="application/json" id="deck-assets">{"../../../logo.svg":"data:image/svg+xml,%3Csvg%2F%3E"}</script>`, /logo\.svg/],
+  ];
+  for (const [what, html, name] of cases) {
+    assert.throws(() => DeckUnpack.split(html), e => /outside the launcher page's folder/.test(e.message) && name.test(e.message), what);
+    const f = path.join(SANDBOX, 'outside.html'), dir = path.join(SANDBOX, 'outside-out');
+    fs.writeFileSync(f, html);
+    const r = build([f, '--unpack', '-o', dir]);
+    assert.ok(!r.ok, what);
+    assert.match(r.err, /outside the launcher page's folder/, what);
+    assert.ok(!fs.existsSync(dir), `${what}: nothing is written`);
+  }
+  // Going up and coming back down stays inside
+  const ok = DeckUnpack.split(`${md}<script type="application/json" id="deck-assets">{"../../img/a.svg":"data:image/svg+xml,%3Csvg%2F%3E"}</script>`);
+  assert.deepEqual([...ok.files.keys()].sort(), ['img/a.svg', 'talks/t1/talk.md']);
 });
 
 test('launcher page loading deckmd from the CDN: same version uses this folder\'s files, another version is reported and read from the CDN', () => {

@@ -66,7 +66,7 @@ const posix = p => p.split(path.sep).join('/');
 const show = p => posix(path.relative(process.cwd(), p)) || '.';
 const size = n => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`);
 
-if (UNPACK) unpack(); else await pack();
+if (UNPACK) await unpack(); else await pack();
 
 // ── Pack ─────────────────────────────────────────────────────────
 async function pack() {
@@ -132,7 +132,8 @@ async function pack() {
   async function load(u) {
     const url = new URL(u);
     if (url.origin === HOST) {
-      if (url.href.split(/[?#]/)[0] === pageUrl) return Buffer.from(pageHtml);
+      // The page made up in memory (no project) is not a launcher page to keep in the bundle (pack.js reads the page again for that)
+      if (url.href.split(/[?#]/)[0] === pageUrl) return PAGE || useLauncher ? Buffer.from(pageHtml) : null;
       const f = toFile(url.href);
       return fs.existsSync(f) && fs.statSync(f).isFile() ? fs.readFileSync(f) : null;
     }
@@ -170,13 +171,16 @@ async function pack() {
     },
   });
   const w = dom.window;
-  const failed = () => /Can't open the deck/.test(w.document.body?.textContent || '');            // deck.js fail() screen
+  // deck.js fail() screen: its heading, not the words anywhere in the page (a page with deck.js inside holds them in its code)
+  const failed = () => [...w.document.querySelectorAll('h2')].some(h => h.textContent === "Can't open the deck");
   for (let i = 0; i < 300; i++) {
     await new Promise(r => setTimeout(r, 100));
     if (failed() || (w.DeckPack && w.document.querySelectorAll('.slides > section').length)) break;
   }
   if (!w.DeckPack || failed() || !w.document.querySelectorAll('.slides > section').length) {
-    const msg = (w.document.body?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+    const screen = w.document.body?.cloneNode(true);
+    screen?.querySelectorAll('script, style').forEach(el => el.remove());          // what is on the screen, not the code inside the page
+    const msg = (screen?.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 300);
     console.error(`could not open the deck: ${show(INPUT)}${msg ? `\n  screen: ${msg}` : ''}${errors.length ? `\n  ${errors.slice(0, 5).join('\n  ')}` : ''}`);
     process.exit(1);
   }
@@ -191,48 +195,26 @@ async function pack() {
 }
 
 // ── Unpack ───────────────────────────────────────────────────────
-// Split by the marks pack.js left when packing: data-from="deckmd" = deckmd's files, data-src https:// = libraries → not extracted.
-// data-file = original location of a user file (relative to the launcher page), the Markdown has data-path, images are in the deck-assets table (relative to the Markdown; starting with '/', to the launcher page).
-// Fonts and images embedded as data: inside user CSS are left as is, since their original names are unknown.
-function unpack() {
+// The splitting is js/unpack.js, shared with the E key's zip download; here the files are written to disk.
+async function unpack() {
+  await import(pathToFileURL(path.join(ROOT, 'js/unpack.js')).href);
   const html = fs.readFileSync(INPUT, 'utf8');
   const outDir = path.resolve(OUT_ARG || INPUT.replace(/\.html?$/i, ''));
-  const unsafe = s => s.replace(/<\\\/script/gi, '</script');
-  const attrs = s => Object.fromEntries([...s.matchAll(/([\w-]+)(?:="([^"]*)")?/g)].map(m => [m[1], (m[2] ?? '').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')]));
-  const files = new Map();        // extract location → content
-  const skipped = [], kept = [];
-  let mdPath = null;
-  for (const m of html.matchAll(/<(style|script)\b([^>]*)>([\s\S]*?)<\/\1>/g)) {
-    const a = attrs(m[2]);
-    const text = unsafe(m[3]).replace(/^\n/, '').replace(/\n$/, '');
-    if (a.type === 'text/markdown') { mdPath = a['data-path'] || 'talk.md'; files.set(mdPath, text.endsWith('\n') ? text : `${text}\n`); continue; }
-    if (a.id === 'deck-meta') { console.error('bundled files of pages with slides written directly (HTML decks) cannot be unpacked yet'); process.exit(1); }
-    if (!a['data-src']) continue;
-    if (a['data-from'] === 'deckmd' || /^https?:/.test(a['data-src'])) { skipped.push(a['data-src']); continue; }
-    const where = a['data-file'] || a['data-src'];              // older bundles without marks: the written path as is
-    files.set(where, text);
-    if (m[1] === 'style' && /url\(\s*["']?data:/.test(text)) kept.push(where);
-  }
-  const table = /<script type="application\/json" id="deck-assets">([\s\S]*?)<\/script>/.exec(html);
-  if (table) {
-    const mdDir = path.posix.dirname(mdPath || 'talk.md');
-    for (const [ref, uri] of Object.entries(JSON.parse(unsafe(table[1])))) {
-      const m = /^data:[^;,]*(;base64)?,(.*)$/s.exec(uri);
-      if (!m) continue;
-      const where = ref.startsWith('/') ? ref.replace(/^\/+/, '') : path.posix.join(mdDir, decodeURI(ref));
-      files.set(where, m[1] ? Buffer.from(m[2], 'base64') : decodeURIComponent(m[2]));
-    }
-  }
-  if (!files.size) die('no user files to extract (is this a file packed with deckmd?)');
+  let r;
+  try { r = globalThis.DeckUnpack.split(html); } catch (e) { die(e.message); }
+  const { files, launcher, skipped, kept } = r;
 
-  const plan = [...files].map(([where, data]) => [path.resolve(outDir, path.posix.normalize(where)), where, data]);
-  const outside = plan.filter(([abs]) => !abs.startsWith(outDir + path.sep));
-  if (outside.length) console.warn(`  ! skipped, outside the extract folder: ${outside.map(p => p[1]).join(', ')}`);
-  const todo = plan.filter(p => !outside.includes(p));
+  let todo = [...files].map(([where, data]) => [path.resolve(outDir, where), where, data]);
+  // The launcher page the bundle kept: given back when there is none, but one that is already there (a project) stays as it is
+  const keepPage = launcher && fs.existsSync(path.resolve(outDir, launcher)) && !FORCE;
+  if (keepPage) todo = todo.filter(([, where]) => where !== launcher);
+  const outside = todo.filter(([abs]) => !abs.startsWith(outDir + path.sep));       // split() already refuses '..'; this is the last guard
+  if (outside.length) die(`outside the extract folder: ${outside.map(p => p[1]).join(', ')}`);
   const exist = todo.filter(([abs]) => fs.existsSync(abs));
   if (exist.length && !FORCE) die(`already exists: ${exist.map(([abs]) => show(abs)).join(', ')} (use --force to overwrite)`);
   for (const [abs, , data] of todo) { fs.mkdirSync(path.dirname(abs), { recursive: true }); fs.writeFileSync(abs, data); }
   console.log(`${show(outDir)}/  ${todo.length} files: ${todo.map(p => p[1]).join(', ')}`);
   if (skipped.length) console.log(`  (not extracted: ${skipped.length} libraries / deckmd files)`);
   if (kept.length) console.warn(`  ! fonts and images embedded in CSS are left as is (original names unknown): ${kept.join(', ')}`);
+  if (keepPage) console.log(`  (${launcher} is already there, so the bundle's copy of it was not written)`);
 }

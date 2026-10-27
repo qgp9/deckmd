@@ -32,6 +32,7 @@
     ['js', 'js/libs.js', ''],                       // what DeckMD.register accepts (also read by tools/libs.mjs)
     ['js', 'js/notices.js', 'pack'],                 // license list written into bundled files
     ['js', 'js/pack.js', 'pack'],
+    ['js', 'js/unpack.js', 'pack'],                  // the E key's zip downloads (also used by build.mjs --unpack)
     ['js', 'js/deck.js', ''],
   ];
   // Internet URL → local copy path (used by localize.mjs, build.mjs, release.mjs. The reverse is libUrl in pack.js)

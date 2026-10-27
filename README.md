@@ -100,7 +100,7 @@ Freeze a finished deck into one HTML file. Even if the template changes later, t
 
 - While viewing a deck, press **E** → "Offline" (everything inside, opens without internet) or "Share" (libraries from a CDN, small)
 - The command line gives the same result: `node deckmd/tools/build.mjs talk.md`, `npx deckmd talk.md`
-- Unpack: get your own files (Markdown, images, CSS) back out of a bundled file
+- Unpack: get your own files (Markdown, images, CSS) back out of a bundled file, as a zip from the E key or into a folder from the command line
 - The licenses of the bundled libraries are listed at the top of the file
 
 → [docs/packing.md](docs/packing.md)

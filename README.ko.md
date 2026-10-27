@@ -100,7 +100,7 @@ reveal.js 위에 마크다운 문법 몇 가지를 더했다.
 
 - 덱을 보다가 **E** 키 → "오프라인"(전부 넣은 파일, 인터넷 없이 열림) 또는 "공유"(라이브러리는 CDN, 작음)
 - 명령줄도 같은 결과: `node deckmd/tools/build.mjs talk.md`, `npx deckmd talk.md`
-- 풀기: 묶은 파일에서 내 파일(마크다운·그림·CSS)만 다시 꺼내기
+- 풀기: 묶은 파일에서 내 파일(마크다운·그림·CSS)만 다시 꺼내기. E 키로는 zip, 명령줄로는 폴더에
 - 들어 있는 라이브러리의 라이선스를 파일 맨 위에 적는다
 
 → [docs/packing.md](docs/packing.md)
