@@ -276,26 +276,21 @@ ${tail.join('\n')}
     // Quoted for the shell it will be pasted into: single quotes on macOS/Linux (nothing inside is special, so a $ or " stays as it is;
     // a ' is written '\''), double quotes on Windows (cmd.exe expands nothing in them, and " can't be in a Windows name)
     const quote = d => (win ? `"${d}"` : `'${d.replace(/'/g, "'\\''")}'`);
-    // deckmd in a local folder (deckmd/): its own server, plain node, nothing to download (serving needs no npm install).
-    // From a CDN, or inside the page (an unpacked zip): the npm package
-    const here = window.DeckMD?.here;
-    const local = here?.protocol === 'file:' && !inside ? pagePath(here.href) : null;   // deckmd inside the page: no folder to run
-    const node = local != null ? `node ${local}tools/build.mjs serve` : 'npx deckmd serve';
     const url = `http://localhost:8000/${/^index\.html?$/i.test(page) ? '' : page}${location.search}`;
     // One command per line, each with its own copy button: the servers are alternatives, and cmd.exe has no # comments
     const cmd = c => `<div class="row"><code>${esc(c)}</code><button type="button" data-copy>Copy</button></div>`;
     serveStyle();
     return `<div class="deck-serve"><h4>${title} <span>${why}</span></h4>
       <p>In a terminal, go to this folder:</p>${cmd(`cd ${quote(dir)}`)}
-      <p>then start one of these (Node, or Python):</p>${cmd(node)}${cmd(`${win ? 'python' : 'python3'} -m http.server`)}
-      <p>and open <b>${esc(url)}</b> (or the address it prints).</p></div>`;
+      <p>then start one of these (Node, or Python):</p>${cmd('npx deckmd serve')}${cmd(`${win ? 'python' : 'python3'} -m http.server`)}
+      <p>and open <a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a> (or the address it prints).</p></div>`;
   }
   function serveStyle() {
     if (document.getElementById('deck-serve-css')) return;
     const css = document.createElement('style');
     css.id = 'deck-serve-css';
     css.textContent = `.deck-serve{text-align:left;margin:0 0 14px;font-size:13px;line-height:1.5;color:#8b96a8}.deck-serve h4{margin:0 0 4px;font-size:14px;color:#8b96a8;font-weight:600}.deck-serve h4 span{font-weight:400;font-size:12px;margin-left:6px}
-      .deck-serve p{margin:0 0 2px;word-break:break-all}.deck-serve b{color:#e9edf3;font-weight:500}.deck-serve .row{display:flex;gap:6px;align-items:stretch;margin:2px 0 6px}
+      .deck-serve p{margin:0 0 2px;word-break:break-all}.deck-serve a{color:#ffb454}.deck-serve .row{display:flex;gap:6px;align-items:stretch;margin:2px 0 6px}
       .deck-serve code{flex:1;padding:6px 10px;border-radius:8px;background:#0e1117;border:1px solid #2c3544;color:#e9edf3;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all;user-select:all}
       .deck-serve .row button{flex:none;width:auto;margin:0;padding:4px 10px;border-radius:8px;border:1px solid #2c3544;background:#1f2632;color:#e9edf3;font:12px sans-serif;cursor:pointer}.deck-serve .row button:hover{border-color:#ffb454}`;
     document.head.appendChild(css);

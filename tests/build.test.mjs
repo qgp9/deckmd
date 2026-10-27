@@ -1535,18 +1535,18 @@ test('E panel: opened as a file, a project deck says how to serve its folder (a 
     return { cmds: [...box.querySelectorAll('.deck-serve code')].map(c => c.textContent), copies: box.querySelectorAll('.deck-serve button[data-copy]').length, text: box.textContent, window: dom.window };
   };
   let p = panel('file:///Users/me/my%20talks/index.html?src=slides/a/deck.md', { here: 'file:///Users/me/my%20talks/deckmd/' });
-  assert.deepEqual(p.cmds, ["cd '/Users/me/my talks'", 'node deckmd/tools/build.mjs serve', 'python3 -m http.server'], 'deckmd in a local folder: its own server, plain node');
+  assert.deepEqual(p.cmds, ["cd '/Users/me/my talks'", 'npx deckmd serve', 'python3 -m http.server']);
   assert.equal(p.copies, 3, 'a copy button for each');
   assert.match(p.text, /open http:\/\/localhost:8000\/\?src=slides\/a\/deck\.md \(or the address it prints\)/);
-  assert.deepEqual(panel('file:///Users/me/t/index.html', { here: 'https://cdn.jsdelivr.net/npm/deckmd@0.5.0/' }).cmds[1], 'npx deckmd serve', 'deckmd from a CDN: the npm package');
+  assert.equal(p.window.document.querySelector('.deck-serve a').href, 'http://localhost:8000/?src=slides/a/deck.md', 'the address is a link');
   assert.equal(panel("file:///Users/me/%24HOME%20it's%20%22x%22/index.html").cmds[0], `cd '/Users/me/$HOME it'\\''s "x"'`, 'nothing in the name is expanded or breaks the quotes');
   p = panel('file:///C:/Users/me/talks/deck.html', { here: 'file:///C:/Users/me/talks/deckmd/' });
-  assert.deepEqual(p.cmds, ['cd "C:\\Users\\me\\talks"', 'node deckmd/tools/build.mjs serve', 'python -m http.server'], 'Windows: a Windows path, and python');
+  assert.deepEqual(p.cmds, ['cd "C:\\Users\\me\\talks"', 'npx deckmd serve', 'python -m http.server'], 'Windows: a Windows path, and python');
   assert.match(p.text, /open http:\/\/localhost:8000\/deck\.html /);
   assert.equal(panel('file:///a/50%zz/index.html').cmds[0], "cd '/a/50%zz'", 'a stray % is kept as written');
   assert.deepEqual(panel('file:///Users/me/x.offline.html', { bundled: '<script type="text/markdown">\n## x\n</script><script data-src="js/deck.js" data-from="deckmd"></script>' }).cmds, [], 'a bundle: no help');
   assert.deepEqual(panel('file:///Users/me/x/index.html', { bundled: '<script data-src="js/deck.js" data-from="deckmd"></script>', here: 'file:///Users/me/x/' }).cmds.slice(1),
-    ['npx deckmd serve', 'python3 -m http.server'], "an unpacked zip (deckmd inside, the Markdown a file): help, with npx (it has no deckmd folder)");
+    ['npx deckmd serve', 'python3 -m http.server'], 'an unpacked zip (deckmd inside, the Markdown a file): help');
   assert.deepEqual(panel('http://localhost:8000/?src=a.md').cmds, [], 'served: no help');
   // Copy: the clipboard API when there is one, and the button says so
   p = panel('file:///Users/me/t/index.html');

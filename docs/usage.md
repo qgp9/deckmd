@@ -122,11 +122,11 @@ If you open `index.html` directly in the browser, the browser blocks a `file://`
 
   ```bash
   cd 'the folder of index.html'
-  node deckmd/tools/build.mjs serve   # deckmd in a local folder: nothing to install. With deckmd from the CDN: npx deckmd serve
+  npx deckmd serve                    # with Node
   python3 -m http.server              # or with Python (python on Windows)
   ```
 
-  Then open `http://localhost:8000/` (with the same `?src=…`): the deck opens without picking, and E packs it. A bundled file needs none of this: it packs from `file://`.
+  Then open `http://localhost:8000/` (with the same `?src=…`): the deck opens without picking, and E packs it. In a repository with a `deckmd/` folder, `node deckmd/tools/build.mjs serve` does the same without downloading anything. A bundled file needs none of this: it packs from `file://`.
 
 ## URL options
 
